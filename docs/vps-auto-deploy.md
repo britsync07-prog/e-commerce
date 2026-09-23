@@ -112,12 +112,25 @@ BACKEND_URL=https://api.yourdomain.com
 ROOT_DOMAIN=yourdomain.com
 ```
 
+Current live-test domain:
+
+```txt
+ROOT_DOMAIN=mdsaimon.qzz.io
+BACKEND_URL=http://127.0.0.1:4001
+```
+
 ## Nginx
 
 Template:
 
 ```txt
 ops/vps/nginx.example.conf
+```
+
+Current domain config:
+
+```txt
+ops/vps/nginx-mdsaimon.qzz.io.conf
 ```
 
 Routing, if you choose to add it manually:

@@ -22,7 +22,8 @@ module.exports = {
         NODE_ENV: "production",
         PORT: "3100",
         HOST: "0.0.0.0",
-        BACKEND_URL: "http://127.0.0.1:4001"
+        BACKEND_URL: "http://127.0.0.1:4001",
+        ROOT_DOMAIN: "mdsaimon.qzz.io"
       }
     }
   ]
