@@ -1,0 +1,19 @@
+PDF 15 - Team, Settings, Billing, and Security
+
+What is here:
+- Roles, permissions, shop settings, integrations, billing, audit/security.
+- Basic version required before launch.
+
+Backend to do first:
+- Fixed roles: owner, admin, sales, packer, marketer, accountant.
+- Integration token storage.
+- Billing plan/usage/invoices.
+- Sessions/login events/audit.
+
+TODOS:
+- [ ] Owner cannot remove own access without transfer flow.
+- [ ] Payment/export permissions restricted by default.
+- [ ] Disconnect integration warns what breaks.
+- [ ] Audit log cannot be edited.
+- [ ] Billing usage avoids surprise charges.
+

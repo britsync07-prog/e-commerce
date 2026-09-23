@@ -1,0 +1,20 @@
+PDF 01 - Onboarding and Store Setup
+
+What is here:
+- First 5-minute journey: account, shop, products, channels, AI mode, launch.
+- Seller can skip Meta and still launch website-only.
+- Live preview and save-draft required.
+
+Backend to do first:
+- Signup/login/OTP or password.
+- Shop draft save and launch.
+- Subdomain availability and suggestions.
+- Product manual add and import validation.
+
+TODOS:
+- [ ] Implement owner, shop, policy defaults, first product fields.
+- [ ] Add subdomain format/availability API.
+- [ ] Add onboarding progress state.
+- [ ] Add Excel/CSV import with mapping and row errors.
+- [ ] Add launch guard: block only if no product and no template.
+

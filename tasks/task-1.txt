@@ -1,0 +1,20 @@
+PDF 00 - Platform Overview and Roadmap
+
+What is here:
+- Master plan for AI-first F-commerce platform, not Shopify clone.
+- Main value: website, AI inbox, products, orders, courier, payments, ads in one dashboard.
+- Target sellers: Facebook/Instagram shops doing 0-200 COD orders/day.
+
+Backend to do first:
+- Multi-tenant shop/user foundation.
+- Dashboard shell data: sales, pending chats, pending orders, courier issues, low stock.
+- AI action model: suggest, draft, ask approval, execute.
+- Audit log for staff and AI actions.
+
+TODOS:
+- [ ] Create shops/users/connections/plans/compliance tables.
+- [ ] Add global permission checks for risky actions.
+- [ ] Define third-party retry/draft pattern.
+- [ ] Add language fields for Bangla, Banglish, English, Roman Urdu, Urdu.
+- [ ] Block AI from inventing price, stock, delivery charge, delivery date, policy.
+

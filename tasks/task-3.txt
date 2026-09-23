@@ -1,0 +1,20 @@
+PDF 02 - Website Builder, Themes, and Storefront
+
+What is here:
+- Seller builder plus buyer-facing shopname domain.
+- Fast catalog, product page, COD checkout, tracking lookup.
+- Start with 5 excellent themes, no drag-drop V1.
+
+Backend to do first:
+- Storefront theme settings.
+- Product listing/detail APIs.
+- Checkout submit and order draft/create.
+- Tracking lookup by phone plus order ID.
+
+TODOS:
+- [ ] Store theme/template/colors/sections/banners.
+- [ ] Store SEO/share data and policy links.
+- [ ] Build checkout validation for required fields/COD rules.
+- [ ] Prevent tracking lookup from exposing another buyer address.
+- [ ] Keep publish drafts and retry domain failure.
+

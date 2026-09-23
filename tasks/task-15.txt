@@ -1,0 +1,17 @@
+PDF 14 - Analytics Dashboard
+
+What is here:
+- Sales, operations, customers, delivery, AI metrics.
+- P1 after event data is reliable.
+
+Backend to do first:
+- Normalized analytics events from orders, delivery, payments, inbox, AI.
+- Reports and exports with filters.
+
+TODOS:
+- [ ] Define placed/confirmed/shipped/delivered/cancelled/returned metrics.
+- [ ] Support zero/low-data states.
+- [ ] Exports must match visible filters.
+- [ ] Link every chart/problem card to affected records.
+- [ ] AI insights must show numbers used.
+

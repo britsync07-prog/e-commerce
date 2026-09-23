@@ -1,0 +1,18 @@
+PDF 12 - AI Ad Creative Studio
+
+What is here:
+- Generates product hooks, captions, headlines, scripts, creative briefs.
+- Uses selected product facts and brand rules.
+
+Backend to do first:
+- Creative request/output storage.
+- Brand rules and saved templates.
+- Safety checks for banned/unrealistic claims.
+
+TODOS:
+- [ ] Store product/objective/offer/audience/language/tone.
+- [ ] Save outputs by product and date.
+- [ ] Warn/block medical, financial, unrealistic claims.
+- [ ] Keep generated ads review-only before use.
+- [ ] Do not copy competitor text.
+

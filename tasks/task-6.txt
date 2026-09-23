@@ -1,0 +1,18 @@
+PDF 05 - Comment Automation and Lead Capture
+
+What is here:
+- Detect price/details comments and turn into DM/leads/orders.
+- Rule builder, product matching, moderation, lead board.
+- P1 after core inbox/order works.
+
+Backend to do first:
+- Posts, rules, leads, moderation records.
+- Rate limits and consent/policy controls.
+
+TODOS:
+- [ ] Store platform post IDs, linked product, media/caption/status.
+- [ ] Add keyword/language/rate-limit rule fields.
+- [ ] Merge lead if buyer already exists.
+- [ ] Keep hide-comment audit trail.
+- [ ] Never auto-DM angry comments with sales copy.
+

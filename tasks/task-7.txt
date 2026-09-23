@@ -1,0 +1,19 @@
+PDF 06 - AI Order Confirmation and Checkout Forms
+
+What is here:
+- AI collects name, phone, address, item, payment, risk.
+- Checkout link for messy chats.
+- Order confirm reserves stock and locks snapshots.
+
+Backend to do first:
+- Order draft extraction and field confidence.
+- Checkout links with expiry.
+- Validation for phone/address/stock/duplicate/risk.
+
+TODOS:
+- [ ] Require phone, address, item, quantity, price before confirm.
+- [ ] Add risk score/reasons and safe/review/advance statuses.
+- [ ] Ask one missing field at a time.
+- [ ] Block confirm if stock unavailable.
+- [ ] Keep draft cancel from deleting chat history.
+

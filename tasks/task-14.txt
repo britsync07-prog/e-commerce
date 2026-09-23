@@ -1,0 +1,17 @@
+PDF 13 - AI Command Center
+
+What is here:
+- Global command bar for questions, drafts, approved actions.
+- P1 after core data/actions exist.
+
+Backend to do first:
+- AI command records, risk classifier, action approvals.
+- Source-data citations and permission checks.
+
+TODOS:
+- [ ] Classify every command risk before acting.
+- [ ] Preview risky action before explicit approval.
+- [ ] Refuse actions outside connected shop or permissions.
+- [ ] Write audit log for every executed command.
+- [ ] Support undo only where real rollback exists.
+

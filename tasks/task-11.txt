@@ -1,0 +1,18 @@
+PDF 10 - Customers, CRM, Coupons, and Retention
+
+What is here:
+- Customer profiles, tags, segments, coupons, broadcasts, retention analytics.
+- P1 growth feature.
+
+Backend to do first:
+- Customer database from orders/messages.
+- Consent and opt-out.
+- Coupons and saved segments.
+
+TODOS:
+- [ ] Store order/chat/payment/return/customer timeline.
+- [ ] Block campaigns without consent and rate-limit checks.
+- [ ] Preview duplicate customer merge before applying.
+- [ ] Prevent opt-out customers from receiving campaigns.
+- [ ] Add coupon usage limits and expiry.
+

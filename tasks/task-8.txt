@@ -1,0 +1,18 @@
+PDF 07 - Orders Management Dashboard
+
+What is here:
+- Operations center for all orders from chat, website, staff, manual.
+- Status pipeline: New -> Confirmed -> Packed -> Shipped -> Delivered/Returned.
+- Bulk print/book/export and issue queue.
+
+Backend to do first:
+- Orders, order items, status timeline, issue queue.
+- Bulk action preview and permission checks.
+
+TODOS:
+- [ ] Add full order timeline for every status change.
+- [ ] Restrict backward moves with reason.
+- [ ] Bulk book skips invalid orders and reports why.
+- [ ] Export respects staff permissions.
+- [ ] Cancelled/returned orders keep history and stock logic.
+

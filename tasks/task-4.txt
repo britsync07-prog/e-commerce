@@ -1,0 +1,18 @@
+PDF 03 - Products and Inventory Management
+
+What is here:
+- Product data is source of truth for AI, website, ads, orders, courier.
+- Stock, variants, images, ledger, imports/exports.
+
+Backend to do first:
+- Products, variants, categories, images.
+- Inventory ledger with reason/staff.
+- Stock reservation on order confirmation.
+
+TODOS:
+- [ ] Product cannot publish without name and price.
+- [ ] AI uses only active products and current stock.
+- [ ] Add duplicate SKU import handling.
+- [ ] Require reason for negative stock adjustment.
+- [ ] Preserve product snapshot on existing orders.
+

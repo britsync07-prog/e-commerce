@@ -1,0 +1,19 @@
+PDF 08 - Delivery and Courier Integration
+
+What is here:
+- Connect couriers, book delivery, tracking sync, failed delivery handling.
+- P0/P1 depending courier APIs.
+- Manual courier mode required.
+
+Backend to do first:
+- Courier accounts, shipments, tracking events.
+- Booking draft/retry on API failure.
+- Failed delivery/reschedule flow.
+
+TODOS:
+- [ ] Test courier credentials on connect.
+- [ ] Prevent shipment without complete address/phone.
+- [ ] Prefer webhook status over manual mark.
+- [ ] Store source and last sync time for conflicts.
+- [ ] Add manual booking sheet mode.
+

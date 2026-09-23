@@ -1,0 +1,18 @@
+PDF 09 - Payments, COD, and Reconciliation
+
+What is here:
+- Tracks COD, advance, paid/unpaid, proof, courier cash settlement.
+- P1 after order/courier core.
+
+Backend to do first:
+- Payment records, proof upload, payment events.
+- Permission-protected mark-paid/refund.
+- COD settlement matching.
+
+TODOS:
+- [ ] Every payment edit writes audit trail.
+- [ ] Manual mode says marked paid, not bank-confirmed.
+- [ ] Request advance keeps order pending until approved/paid.
+- [ ] Refund notes never delete original payment history.
+- [ ] Put unmatched COD rows into issue list.
+

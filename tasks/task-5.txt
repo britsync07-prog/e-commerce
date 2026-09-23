@@ -1,0 +1,20 @@
+PDF 04 - AI Inbox for Messenger and Instagram
+
+What is here:
+- Hero feature: unified Messenger/Instagram inbox.
+- AI drafts replies from product, inventory, policy, customer history.
+- Converts chat to order draft without retyping.
+
+Backend to do first:
+- Conversations/messages/customers/order drafts.
+- Meta webhook ingestion.
+- AI draft generation with source references.
+- Assignment, pause AI, approval/send state.
+
+TODOS:
+- [ ] Store channel, buyer external ID, intent, assigned staff.
+- [ ] Add AI confidence and source refs to messages/drafts.
+- [ ] Block confirm when phone/address missing.
+- [ ] Escalate angry/refund/legal/abuse/VIP/low-confidence messages.
+- [ ] Audit every auto-sent message.
+

@@ -1,0 +1,18 @@
+PDF 11 - Ads Tracking and Meta CAPI
+
+What is here:
+- Lightweight ads dashboard: pixel/CAPI/catalog, spend, orders, delivered revenue.
+- P1/P2 after reliable orders.
+
+Backend to do first:
+- Meta connections and event delivery.
+- Product catalog sync.
+- Campaign stats import and attribution.
+
+TODOS:
+- [ ] Separate placed order revenue from delivered revenue.
+- [ ] Show tracking health and last event time.
+- [ ] Skip unpublished/out-of-stock catalog products if configured.
+- [ ] Label unknown attribution clearly.
+- [ ] Never auto-change ad budgets in V1.
+
