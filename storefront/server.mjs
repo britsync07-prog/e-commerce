@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 
-const port = Number(process.env.PORT ?? 3000);
+const port = Number(process.env.PORT ?? 3100);
 const host = process.env.HOST ?? "0.0.0.0";
 const backendUrl = process.env.BACKEND_URL ?? "http://127.0.0.1:4001";
 const rootDomain = process.env.ROOT_DOMAIN ?? "localhost";
@@ -145,4 +145,3 @@ const server = createServer(async (request, response) => {
 server.listen(port, host, () => {
   console.log(`Storefront listening on http://${host}:${port}`);
 });
-

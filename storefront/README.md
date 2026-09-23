@@ -13,7 +13,7 @@ npm run dev
 Open:
 
 ```txt
-http://127.0.0.1:3000/?shop=your-shop-subdomain
+http://127.0.0.1:3100/?shop=your-shop-subdomain
 ```
 
 ## VPS Routing
@@ -28,7 +28,7 @@ Reverse proxy:
 
 ```txt
 api.yourdomain.com       -> backend :4001
-*.yourdomain.com         -> storefront :3000
+*.yourdomain.com         -> storefront :3100
 dashboard.yourdomain.com -> dashboard later
 ```
 
@@ -37,6 +37,5 @@ Environment:
 ```txt
 BACKEND_URL=https://api.yourdomain.com
 ROOT_DOMAIN=yourdomain.com
-PORT=3000
+PORT=3100
 ```
-

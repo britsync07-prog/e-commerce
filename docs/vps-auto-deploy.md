@@ -106,7 +106,7 @@ Storefront:
 Example:
 
 ```txt
-PORT=3000
+PORT=3100
 HOST=0.0.0.0
 BACKEND_URL=https://api.yourdomain.com
 ROOT_DOMAIN=yourdomain.com
@@ -124,7 +124,7 @@ Routing, if you choose to add it manually:
 
 ```txt
 api.yourdomain.com -> 127.0.0.1:4001
-*.yourdomain.com   -> 127.0.0.1:3000
+*.yourdomain.com   -> 127.0.0.1:3100
 ```
 
 DNS:

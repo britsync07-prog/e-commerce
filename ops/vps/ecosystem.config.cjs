@@ -8,7 +8,9 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         PORT: "4001",
-        HOST: "0.0.0.0"
+        HOST: "0.0.0.0",
+        DATABASE_URL: "postgres://postgres:postgres@localhost:5432/fcommerce",
+        REDIS_URL: "redis://localhost:6379"
       }
     },
     {
@@ -18,11 +20,10 @@ module.exports = {
       interpreter: "node",
       env: {
         NODE_ENV: "production",
-        PORT: "3000",
+        PORT: "3100",
         HOST: "0.0.0.0",
         BACKEND_URL: "http://127.0.0.1:4001"
       }
     }
   ]
 };
-

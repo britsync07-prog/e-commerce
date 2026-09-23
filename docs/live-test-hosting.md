@@ -6,7 +6,7 @@ Goal:
 ## Components
 
 - Backend API: `backend/`, default local port `4001`.
-- Storefront renderer: `storefront/`, default local port `3000`.
+- Storefront renderer: `storefront/`, default local port `3100`.
 
 ## Local Test
 
@@ -29,7 +29,7 @@ npm run dev
 4. Open:
 
 ```txt
-http://127.0.0.1:3000/?shop=SHOP_SUBDOMAIN
+http://127.0.0.1:3100/?shop=SHOP_SUBDOMAIN
 ```
 
 ## VPS Test
@@ -45,7 +45,7 @@ Proxy:
 
 ```txt
 api.yourdomain.com -> 127.0.0.1:4001
-*.yourdomain.com   -> 127.0.0.1:3000
+*.yourdomain.com   -> 127.0.0.1:3100
 ```
 
 Storefront env:
@@ -53,7 +53,7 @@ Storefront env:
 ```txt
 BACKEND_URL=https://api.yourdomain.com
 ROOT_DOMAIN=yourdomain.com
-PORT=3000
+PORT=3100
 ```
 
 Expected:
@@ -69,4 +69,3 @@ https://api.yourdomain.com/api/v1/storefront/shop-subdomain
 ```
 
 Then renders shop data with the selected test template.
-
