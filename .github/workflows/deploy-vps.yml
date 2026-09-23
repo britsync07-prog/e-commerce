@@ -24,6 +24,9 @@ jobs:
 
       - name: Backend checks
         working-directory: backend
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/fcommerce_ci
+          REDIS_URL: redis://localhost:6379
         run: |
           npm ci
           npm run check
