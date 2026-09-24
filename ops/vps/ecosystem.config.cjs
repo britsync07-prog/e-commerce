@@ -10,7 +10,9 @@ module.exports = {
         PORT: "4001",
         HOST: "0.0.0.0",
         DATABASE_URL: "postgres://postgres:postgres@localhost:5432/fcommerce",
-        REDIS_URL: "redis://localhost:6379"
+        REDIS_URL: "redis://localhost:6379",
+        STORAGE_DRIVER: "local",
+        LOCAL_STORAGE_DIR: "/var/www/e-commerce/backend/storage"
       }
     },
     {

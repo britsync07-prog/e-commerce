@@ -51,6 +51,10 @@ git reset --hard "origin/$BRANCH"
 
 log "installing backend dependencies"
 cd "$APP_DIR/backend"
+export DATABASE_URL="${DATABASE_URL:-postgres://postgres:postgres@localhost:5432/fcommerce}"
+export REDIS_URL="${REDIS_URL:-redis://localhost:6379}"
+export STORAGE_DRIVER="${STORAGE_DRIVER:-local}"
+export LOCAL_STORAGE_DIR="${LOCAL_STORAGE_DIR:-$APP_DIR/backend/storage}"
 npm ci
 npm run db:migrate
 npm run build
