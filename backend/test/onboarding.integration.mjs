@@ -144,7 +144,23 @@ async function testTemplateCatalogAndSelection() {
   await app.close();
 }
 
+async function testSystemModules() {
+  const app = await buildApp();
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/api/v1/system/modules"
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.ok(response.json().modules.some((module) => module.key === "orders" && module.status === "planned"));
+  assert.ok(response.json().modules.some((module) => module.key === "onboarding" && module.status === "active"));
+
+  await app.close();
+}
+
 await testLaunchFlow();
 await testSubdomainSuggestions();
 await testTemplateCatalogAndSelection();
+await testSystemModules();
 console.log("Onboarding integration checks passed.");

@@ -13,6 +13,10 @@ Auth:
 
 ## `GET /:subdomain`
 
+Request:
+- Path param `subdomain`: published shop subdomain.
+- No body.
+
 Example:
 
 ```txt
@@ -58,4 +62,3 @@ Cache:
 
 Errors:
 - `404 SHOP_NOT_FOUND` when shop is missing or not launched.
-
