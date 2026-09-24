@@ -8,6 +8,7 @@ services:
     volumes:
       - .:/app
       - /app/node_modules
+      - backend-storage:/app/storage
     depends_on:
       - postgres
       - redis
@@ -19,6 +20,7 @@ services:
     volumes:
       - .:/app
       - /app/node_modules
+      - backend-storage:/app/storage
     depends_on:
       - postgres
       - redis
@@ -41,4 +43,4 @@ services:
 
 volumes:
   postgres-data:
-
+  backend-storage:

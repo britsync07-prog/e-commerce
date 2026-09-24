@@ -14,8 +14,10 @@ Minimum tables/entities needed for V1.
 
 - `products`: shop, name, sku, category, description, status, price, compare_price, cost.
 - `product_variants`: product, option values, price override, stock fields.
-- `product_images`: product/variant, url, sort order.
+- `asset_objects`: shop-owned file metadata, storage driver, object key, public URL, MIME, byte size.
+- `product_images`: product/variant, asset, sort order.
 - `inventory_ledger`: product/variant, delta, reason, staff, order, timestamp.
+- `inventory_reservations`: variant, quantity, status, reference, expiry.
 - `categories`.
 
 ## Storefront
@@ -60,4 +62,3 @@ Minimum tables/entities needed for V1.
 - `meta_connections`, `ad_events`, `campaign_stats`, `catalog_sync_runs`.
 - `analytics_events`: normalized event stream for dashboards.
 - `ai_commands`, `ai_action_approvals`, `ai_action_audit`.
-

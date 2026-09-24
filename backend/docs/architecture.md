@@ -25,9 +25,18 @@ Source of truth:
 
 - PostgreSQL: source of truth.
 - Redis: cache, rate limits, idempotency, job locks.
-- Object storage: images, proofs, invoices, exports.
+- Storage: local disk for dev/current VPS, object storage shape for S3/R2 later.
 - Queue/worker: imports, webhooks, AI, courier, payments, exports.
 - Docker: local and deployment parity.
+
+## Database and Storage
+
+- Migrations live in `migrations/*.sql`.
+- Run migrations with `npm run db:migrate`.
+- Deploy runs migrations before build/reload.
+- Uploaded files stay under `LOCAL_STORAGE_DIR`; metadata lives in `asset_objects`.
+- Product images link through `product_images`, not raw URLs.
+- Inventory changes use append-only `inventory_ledger`; checkout reservations use `inventory_reservations`.
 
 ## Cache Rule
 

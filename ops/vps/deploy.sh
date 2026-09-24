@@ -52,6 +52,7 @@ git reset --hard "origin/$BRANCH"
 log "installing backend dependencies"
 cd "$APP_DIR/backend"
 npm ci
+npm run db:migrate
 npm run build
 npm prune --omit=dev
 

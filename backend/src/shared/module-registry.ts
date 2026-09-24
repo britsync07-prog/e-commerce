@@ -12,6 +12,15 @@ export type BackendModule = {
 
 export const backendModules: BackendModule[] = [
   {
+    key: "assets",
+    name: "Asset storage",
+    status: "active",
+    owns: ["image uploads", "asset metadata", "local dev storage"],
+    apiBase: "/api/v1/assets",
+    apiDoc: "assets.md",
+    phase: "foundation"
+  },
+  {
     key: "health",
     name: "Health",
     status: "active",
@@ -63,4 +72,3 @@ export const backendModules: BackendModule[] = [
   { key: "webhooks", name: "Webhooks", status: "planned", owns: ["Meta", "courier", "payment provider events"], phase: "foundation" },
   { key: "jobs", name: "Workers and jobs", status: "planned", owns: ["queues", "retries", "dead letters"], phase: "foundation" }
 ];
-

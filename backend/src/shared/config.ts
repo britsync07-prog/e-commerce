@@ -10,7 +10,10 @@ const schema = z.object({
   LOG_LEVEL: z.string().default("info"),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
-  APP_ORIGIN: z.string().default("http://localhost:3000")
+  APP_ORIGIN: z.string().default("http://localhost:3000"),
+  STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
+  LOCAL_STORAGE_DIR: z.string().default("./storage"),
+  PUBLIC_ASSET_BASE_URL: z.string().default("")
 });
 
 const env = schema.parse(process.env);
@@ -22,5 +25,8 @@ export const config = {
   logLevel: env.LOG_LEVEL,
   databaseUrl: env.DATABASE_URL,
   redisUrl: env.REDIS_URL,
-  appOrigin: env.APP_ORIGIN
+  appOrigin: env.APP_ORIGIN,
+  storageDriver: env.STORAGE_DRIVER,
+  localStorageDir: env.LOCAL_STORAGE_DIR,
+  publicAssetBaseUrl: env.PUBLIC_ASSET_BASE_URL
 };

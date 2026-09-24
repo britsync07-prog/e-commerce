@@ -18,7 +18,19 @@ cd backend
 docker compose up --build
 ```
 
-Current machine does not have Docker available in shell.
+## Database
+
+```powershell
+npm run db:migrate
+```
+
+Migrations live in `migrations/`. Deploy runs migrations before reload.
+
+## Storage
+
+Local uploads use `LOCAL_STORAGE_DIR=./storage`.
+File metadata is stored in PostgreSQL `asset_objects`.
+Production can move the same object-key shape to S3/R2 later.
 
 ## Rules
 
