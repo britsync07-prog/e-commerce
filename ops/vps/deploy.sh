@@ -61,8 +61,7 @@ npm install --omit=dev
 
 log "restarting PM2 apps"
 cd "$APP_DIR"
-pm2 startOrReload ops/vps/ecosystem.config.cjs --only "$BACKEND_APP" --update-env
-pm2 startOrReload ops/vps/ecosystem.config.cjs --only "$STOREFRONT_APP" --update-env
+pm2 startOrReload ops/vps/ecosystem.config.cjs --update-env
 
 log "PM2 status"
 pm2 describe "$BACKEND_APP" || true
