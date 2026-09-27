@@ -68,6 +68,42 @@ export async function previewSegment(shopId: string, segmentId: string) {
   return { segment: segment.rows[0], count: result.rowCount, customers: result.rows };
 }
 
+export async function listBroadcasts(shopId: string) {
+  const result = await db.query("select id, shop_id, name, segment_id, channel, body, status, rate_limit_per_minute, audience_count, approval_reason, approved_by, approved_at, created_by, created_at, updated_at from broadcasts where shop_id = $1 order by created_at desc", [shopId]);
+  return { broadcasts: result.rows };
+}
+
+export async function createBroadcast(shopId: string, input: { name: string; segmentId: string; channel: "messenger" | "instagram"; body: string; rateLimitPerMinute: number }, actorId: string) {
+  const segment = await db.query("select id from customer_segments where shop_id = $1 and id = $2", [shopId, input.segmentId]);
+  if (!segment.rowCount) throw new MarketingError("Segment not found for this shop.", 404, "SEGMENT_NOT_FOUND");
+  const result = await db.query("insert into broadcasts (shop_id, name, segment_id, channel, body, rate_limit_per_minute, created_by) values ($1, $2, $3, $4, $5, $6, $7) returning id, shop_id, name, segment_id, channel, body, status, rate_limit_per_minute, created_at", [shopId, input.name, input.segmentId, input.channel, input.body, input.rateLimitPerMinute, actorId]);
+  await audit(shopId, actorId, "broadcast.created", "broadcast", result.rows[0].id, { channel: input.channel, segmentId: input.segmentId });
+  return { broadcast: result.rows[0] };
+}
+
+export async function previewBroadcast(shopId: string, broadcastId: string) {
+  const broadcast = await db.query("select id, shop_id, name, segment_id, channel, body, status, rate_limit_per_minute, audience_count, approval_reason, approved_by, approved_at, created_at from broadcasts where shop_id = $1 and id = $2", [shopId, broadcastId]);
+  if (!broadcast.rowCount) throw new MarketingError("Broadcast not found.", 404, "BROADCAST_NOT_FOUND");
+  const audience = await previewSegment(shopId, broadcast.rows[0].segment_id);
+  return { broadcast: broadcast.rows[0], audienceCount: audience.count, customers: audience.customers };
+}
+
+export async function approveBroadcast(shopId: string, broadcastId: string, reason: string, actorId: string) {
+  const client = await db.connect();
+  try {
+    await client.query("begin");
+    const broadcast = await client.query("select id, segment_id, status, rate_limit_per_minute from broadcasts where shop_id = $1 and id = $2 for update", [shopId, broadcastId]);
+    if (!broadcast.rowCount) throw new MarketingError("Broadcast not found.", 404, "BROADCAST_NOT_FOUND");
+    if (broadcast.rows[0].status !== "draft") throw new MarketingError("Only draft broadcasts can be approved.", 409, "BROADCAST_NOT_DRAFT");
+    const audience = await previewSegment(shopId, broadcast.rows[0].segment_id);
+    if (!audience.count) throw new MarketingError("Cannot approve a broadcast with an empty consent-safe audience.", 409, "BROADCAST_EMPTY_AUDIENCE");
+    await client.query("update broadcasts set status = 'approved', audience_count = $3, approval_reason = $4, approved_by = $5, approved_at = now(), updated_at = now() where shop_id = $1 and id = $2", [shopId, broadcastId, audience.count, reason, actorId]);
+    await client.query("insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'staff', $2, 'broadcast.approved', 'broadcast', $3, $4)", [shopId, actorId, broadcastId, JSON.stringify({ audienceCount: audience.count, rateLimitPerMinute: broadcast.rows[0].rate_limit_per_minute, reason })]);
+    await client.query("commit");
+  } catch (error) { await client.query("rollback"); throw error; } finally { client.release(); }
+  return previewBroadcast(shopId, broadcastId);
+}
+
 async function audit(shopId: string, actorId: string, action: string, targetType: string, targetId: string, metadata: unknown) {
   await db.query("insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'staff', $2, $3, $4, $5, $6)", [shopId, actorId, action, targetType, targetId, JSON.stringify(metadata)]);
 }

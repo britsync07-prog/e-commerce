@@ -45,6 +45,15 @@ try {
   const preview = await app.inject({ method: "POST", url: `/api/v1/marketing/shops/${shopId}/segments/${segmentId}/preview`, headers: { authorization: `Bearer ${token}` } });
   assert.equal(preview.statusCode, 200, preview.body);
   assert.equal(preview.json().count, 1);
+  const broadcast = await app.inject({ method: "POST", url: `/api/v1/marketing/shops/${shopId}/broadcasts`, headers: { authorization: `Bearer ${token}` }, payload: { name: "VIP Update", segmentId, channel: "messenger", body: "New stock is available", rateLimitPerMinute: 20 } });
+  assert.equal(broadcast.statusCode, 201, broadcast.body);
+  const broadcastId = broadcast.json().broadcast.id;
+  const broadcastPreview = await app.inject({ method: "POST", url: `/api/v1/marketing/shops/${shopId}/broadcasts/${broadcastId}/preview`, headers: { authorization: `Bearer ${token}` } });
+  assert.equal(broadcastPreview.statusCode, 200, broadcastPreview.body);
+  assert.equal(broadcastPreview.json().audienceCount, 1);
+  const approved = await app.inject({ method: "POST", url: `/api/v1/marketing/shops/${shopId}/broadcasts/${broadcastId}/approve`, headers: { authorization: `Bearer ${token}` }, payload: { reason: "Approved for the weekly VIP update" } });
+  assert.equal(approved.statusCode, 200, approved.body);
+  assert.equal(approved.json().broadcast.status, "approved");
   const consent = await app.inject({ method: "PATCH", url: `/api/v1/customers/shops/${shopId}/customers/${customerId}/consent`, headers: { authorization: `Bearer ${token}` }, payload: { status: "opted_out", reason: "Buyer requested no marketing" } });
   assert.equal(consent.statusCode, 200, consent.body);
   assert.equal(consent.json().customer.consent_status, "opted_out");
@@ -52,5 +61,8 @@ try {
   const optedOutPreview = await app.inject({ method: "POST", url: `/api/v1/marketing/shops/${shopId}/segments/${segmentId}/preview`, headers: { authorization: `Bearer ${token}` } });
   assert.equal(optedOutPreview.statusCode, 200, optedOutPreview.body);
   assert.equal(optedOutPreview.json().count, 0);
+  const optedOutBroadcastPreview = await app.inject({ method: "POST", url: `/api/v1/marketing/shops/${shopId}/broadcasts/${broadcastId}/preview`, headers: { authorization: `Bearer ${token}` });
+  assert.equal(optedOutBroadcastPreview.statusCode, 200, optedOutBroadcastPreview.body);
+  assert.equal(optedOutBroadcastPreview.json().audienceCount, 0);
   console.log("Customers DB smoke passed.");
 } finally { await client.end(); await app.close(); }

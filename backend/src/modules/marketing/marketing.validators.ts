@@ -22,3 +22,12 @@ export const segmentDefinitionSchema = z.object({
   minLifetimeValue: z.coerce.number().min(0).max(999999999).default(0)
 });
 export const createSegmentSchema = z.object({ name: z.string().trim().min(2).max(80), definition: segmentDefinitionSchema });
+export const broadcastParamsSchema = z.object({ shopId: z.string().uuid(), broadcastId: z.string().uuid() });
+export const createBroadcastSchema = z.object({
+  name: z.string().trim().min(2).max(100),
+  segmentId: z.string().uuid(),
+  channel: z.enum(["messenger", "instagram"]),
+  body: z.string().trim().min(2).max(2000),
+  rateLimitPerMinute: z.coerce.number().int().min(1).max(100).default(20)
+});
+export const approvalSchema = z.object({ reason: z.string().trim().min(5).max(500) });
