@@ -38,9 +38,20 @@ try {
   assert.equal(refunded.statusCode, 200, refunded.body);
   assert.equal(refunded.json().payment.status, "refunded");
   assert.equal(refunded.json().events.length, 3);
+  const settlement = await app.inject({ method: "POST", url: `/api/v1/payments/shops/${shopId}/cod-settlements`, headers: { authorization: `Bearer ${token}` }, payload: {
+    statementRef: `statement-${stamp}`, courierName: "Test Courier", statementDate: "2026-09-28", collectedAmount: 500,
+    rows: [{ externalRef: "matched-row", orderId, amount: 500 }, { externalRef: "unknown-row", amount: 100 }]
+  } });
+  assert.equal(settlement.statusCode, 201, settlement.body);
+  assert.equal(settlement.json().settlement.status, "issue");
+  assert.equal(settlement.json().rows.filter((row) => row.status === "unmatched").length, 1);
+  const settlements = await app.inject({ method: "GET", url: `/api/v1/payments/shops/${shopId}/cod-settlements`, headers: { authorization: `Bearer ${token}` } });
+  assert.equal(settlements.statusCode, 200, settlements.body);
+  assert.equal(settlements.json().settlements[0].unmatched_count, 1);
   const audit = await app.inject({ method: "GET", url: `/api/v1/shops/${shopId}/audit`, headers: { authorization: `Bearer ${token}` } });
   assert.equal(audit.statusCode, 200, audit.body);
   assert.ok(audit.json().audit.some((event) => event.action === "payment.marked_paid"));
   assert.ok(audit.json().audit.some((event) => event.action === "payment.refunded"));
+  assert.ok(audit.json().audit.some((event) => event.action === "payment.cod_settlement_imported"));
   console.log("Payments DB smoke passed.");
 } finally { await client.end(); await app.close(); }

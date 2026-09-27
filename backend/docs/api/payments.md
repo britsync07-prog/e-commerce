@@ -59,3 +59,57 @@ Audit/timeline: Writes `payment.refunded` audit and `payment_refunded` order tim
 Cache: No cache. Client must refetch after success.
 
 Errors: `PAYMENT_NOT_FOUND`, `PAYMENT_NOT_REFUNDABLE`, `REFUND_EXCEEDS_PAYMENT`, `PARTIAL_REFUND_UNSUPPORTED`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
+
+## `GET /shops/:shopId/cod-settlements`
+
+Purpose: List courier COD settlement statements and unmatched-row counts.
+
+Auth: Requires `payments:read`.
+
+Request: Path `shopId` UUID. Optional `limit` query, 1-100.
+
+Response: `{ "settlements": [{ "id": "uuid", "statement_ref": "courier-001", "status": "issue", "row_count": 3, "unmatched_count": 1 }] }`.
+
+Side effects: None.
+
+Audit/timeline: None.
+
+Cache: No server cache; refetch after import.
+
+Errors: `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
+
+## `POST /shops/:shopId/cod-settlements`
+
+Purpose: Import a courier cash statement and match each row by shop-scoped `orderId` or shipment `trackingNumber`.
+
+Auth: Requires `payments:write`.
+
+Request: `{ "statementRef": "courier-001", "courierName": "Courier", "statementDate": "2026-09-28", "collectedAmount": 500, "fee": 20, "rows": [{ "externalRef": "row-1", "trackingNumber": "TRK-1", "amount": 500 }] }`.
+
+Response: `{ "settlement": { "status": "matched|issue", ... }, "rows": [{ "status": "matched|unmatched", "issue": "ORDER_NOT_MATCHED|null" }] }`.
+
+Side effects: Creates a settlement statement and rows. Every unmatched row is retained with an explicit issue; the settlement status becomes `issue` until reviewed. Duplicate statement references are rejected.
+
+Audit/timeline: Writes `payment.cod_settlement_imported` audit metadata with row and unmatched counts. Import does not change order payment status.
+
+Cache: No cache. Client must refetch settlement and payment reads.
+
+Errors: `SETTLEMENT_CONFLICT`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
+
+## `GET /shops/:shopId/cod-settlements/:settlementId`
+
+Purpose: Read a settlement and every matched/unmatched row.
+
+Auth: Requires `payments:read`.
+
+Request: Path `shopId` and `settlementId` UUIDs.
+
+Response: `{ "settlement": { ... }, "rows": [{ "external_ref": "row-1", "status": "unmatched", "issue": "ORDER_NOT_MATCHED" }] }`.
+
+Side effects: None.
+
+Audit/timeline: None.
+
+Cache: No server cache.
+
+Errors: `SETTLEMENT_NOT_FOUND`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.

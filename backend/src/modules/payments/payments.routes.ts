@@ -2,8 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { AuthError } from "../auth/auth.service.js";
 import { PermissionError, requireShopPermission } from "../../shared/permissions.js";
 import { ZodError, type ZodTypeAny } from "zod";
-import { getPayment, listPayments, markOrderPaid, PaymentError, refundPayment } from "./payments.service.js";
-import { manualPaymentSchema, orderPaymentParamsSchema, paymentListQuerySchema, paymentParamsSchema, refundSchema, shopParamsSchema } from "./payments.validators.js";
+import { createCodSettlement, getCodSettlement, getPayment, listCodSettlements, listPayments, markOrderPaid, PaymentError, refundPayment } from "./payments.service.js";
+import { createSettlementSchema, manualPaymentSchema, orderPaymentParamsSchema, paymentListQuerySchema, paymentParamsSchema, refundSchema, settlementParamsSchema, shopParamsSchema } from "./payments.validators.js";
 
 function parse<T extends ZodTypeAny>(schema: T, value: unknown) { return schema.parse(value) as T["_output"]; }
 function handleError(error: unknown) {
@@ -13,6 +13,18 @@ function handleError(error: unknown) {
 }
 
 export async function registerPaymentRoutes(app: FastifyInstance) {
+  app.get("/shops/:shopId/cod-settlements", async (request, reply) => {
+    try { const params = parse(shopParamsSchema, request.params); const query = parse(paymentListQuerySchema, request.query); await requireShopPermission(request, params.shopId, "payments:read"); return listCodSettlements(params.shopId, query.limit); }
+    catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
+  });
+  app.post("/shops/:shopId/cod-settlements", async (request, reply) => {
+    try { const params = parse(shopParamsSchema, request.params); const body = parse(createSettlementSchema, request.body); const session = await requireShopPermission(request, params.shopId, "payments:write"); return reply.code(201).send(await createCodSettlement(params.shopId, body, session.user.id as string)); }
+    catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
+  });
+  app.get("/shops/:shopId/cod-settlements/:settlementId", async (request, reply) => {
+    try { const params = parse(settlementParamsSchema, request.params); await requireShopPermission(request, params.shopId, "payments:read"); return getCodSettlement(params.shopId, params.settlementId); }
+    catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
+  });
   app.get("/shops/:shopId/payments", async (request, reply) => {
     try { const params = parse(shopParamsSchema, request.params); const query = parse(paymentListQuerySchema, request.query); await requireShopPermission(request, params.shopId, "payments:read"); return listPayments(params.shopId, query); }
     catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }

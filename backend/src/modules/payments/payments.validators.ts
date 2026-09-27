@@ -17,3 +17,19 @@ export const refundSchema = z.object({
   amount: z.coerce.number().positive().max(999999999).optional(),
   note: z.string().trim().min(3).max(500)
 });
+export const settlementParamsSchema = z.object({ shopId: z.string().uuid(), settlementId: z.string().uuid() });
+export const settlementRowSchema = z.object({
+  externalRef: z.string().trim().min(1).max(120),
+  trackingNumber: z.string().trim().max(120).optional(),
+  orderId: z.string().uuid().optional(),
+  amount: z.coerce.number().min(0).max(999999999)
+});
+export const createSettlementSchema = z.object({
+  statementRef: z.string().trim().min(1).max(120),
+  courierName: z.string().trim().min(2).max(120),
+  statementDate: z.string().date(),
+  collectedAmount: z.coerce.number().min(0).max(999999999),
+  fee: z.coerce.number().min(0).max(999999999).default(0),
+  note: z.string().trim().max(500).optional(),
+  rows: z.array(settlementRowSchema).min(1).max(1000)
+});
