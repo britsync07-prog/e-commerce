@@ -108,13 +108,25 @@ try {
   });
   assert.equal(noReason.statusCode, 400, noReason.body);
 
-  const transit = await app.inject({
+  const failed = await app.inject({
     method: "PATCH",
     url: `/api/v1/delivery/shops/${shopId}/shipments/${shipmentId}/status`,
     headers: { authorization: `Bearer ${token}` },
-    payload: { status: "in_transit" }
+    payload: { status: "failed", note: "Buyer unavailable", contactResult: "Buyer requested tomorrow", rescheduleDate: "2026-10-01" }
   });
-  assert.equal(transit.statusCode, 200, transit.body);
+  assert.equal(failed.statusCode, 200, failed.body);
+  assert.equal(failed.json().shipment.status, "failed");
+  assert.equal(failed.json().failedDeliveries[0].status, "open");
+
+  const rescheduled = await app.inject({
+    method: "POST",
+    url: `/api/v1/delivery/shops/${shopId}/shipments/${shipmentId}/reschedule`,
+    headers: { authorization: `Bearer ${token}` },
+    payload: { rescheduleDate: "2026-10-01", contactResult: "Buyer confirmed tomorrow", note: "Retry approved" }
+  });
+  assert.equal(rescheduled.statusCode, 200, rescheduled.body);
+  assert.equal(rescheduled.json().shipment.status, "in_transit");
+  assert.equal(rescheduled.json().failedDeliveries[0].status, "rescheduled");
 
   const delivered = await app.inject({
     method: "PATCH",
@@ -125,7 +137,7 @@ try {
   assert.equal(delivered.statusCode, 200, delivered.body);
   assert.equal(delivered.json().shipment.status, "delivered");
   assert.equal(delivered.json().shipment.order_status, "delivered");
-  assert.equal(delivered.json().events.length, 3);
+  assert.equal(delivered.json().events.length, 4);
 
   const tracked = await app.inject({ method: "GET", url: `/api/v1/orders/track?orderId=${orderId}&phone=${encodeURIComponent(phone)}` });
   assert.equal(tracked.statusCode, 200, tracked.body);

@@ -112,7 +112,11 @@ export async function getShipment(shopId: string, shipmentId: string) {
     "select id, status, source, note, payload, created_by, created_at from shipment_tracking_events where shop_id = $1 and shipment_id = $2 order by created_at asc",
     [shopId, shipmentId]
   );
-  return { shipment: shipment.rows[0], events: events.rows };
+  const failures = await db.query(
+    "select id, reason, contact_result, reschedule_date, status, resolved_at, created_at from failed_deliveries where shop_id = $1 and shipment_id = $2 order by created_at desc",
+    [shopId, shipmentId]
+  );
+  return { shipment: shipment.rows[0], events: events.rows, failedDeliveries: failures.rows };
 }
 
 export async function createManualShipment(
@@ -162,7 +166,7 @@ export async function createManualShipment(
   return getShipment(shopId, shipmentId);
 }
 
-export async function updateShipmentStatus(shopId: string, shipmentId: string, input: { status: ShipmentStatus; note?: string }, actorId: string) {
+export async function updateShipmentStatus(shopId: string, shipmentId: string, input: { status: ShipmentStatus; note?: string; contactResult?: string; rescheduleDate?: string }, actorId: string) {
   const client = await db.connect();
   let orderId = "";
   try {
@@ -183,6 +187,15 @@ export async function updateShipmentStatus(shopId: string, shipmentId: string, i
       "insert into shipment_tracking_events (shop_id, shipment_id, order_id, status, source, note, created_by) values ($1, $2, $3, $4, 'manual', $5, $6)",
       [shopId, shipmentId, orderId, input.status, input.note ?? null, actorId]
     );
+    if (input.status === "failed") {
+      await client.query(
+        "insert into failed_deliveries (shop_id, shipment_id, order_id, reason, contact_result, reschedule_date, created_by) values ($1, $2, $3, $4, $5, $6, $7)",
+        [shopId, shipmentId, orderId, input.note, input.contactResult ?? null, input.rescheduleDate ?? null, actorId]
+      );
+    }
+    if (input.status === "returned") {
+      await client.query("update failed_deliveries set status = 'returned', resolved_at = now() where shop_id = $1 and shipment_id = $2 and status = 'open'", [shopId, shipmentId]);
+    }
     await client.query(
       "insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'staff', $2, 'shipment.status_updated', 'shipment', $3, $4)",
       [shopId, actorId, shipmentId, { from: current, to: input.status, reason: input.note }]
@@ -198,5 +211,30 @@ export async function updateShipmentStatus(shopId: string, shipmentId: string, i
     client.release();
   }
 
+  return getShipment(shopId, shipmentId);
+}
+
+export async function rescheduleShipment(shopId: string, shipmentId: string, input: { rescheduleDate: string; contactResult: string; note?: string }, actorId: string) {
+  const client = await db.connect();
+  let orderId = "";
+  try {
+    await client.query("begin");
+    const shipment = await client.query("select id, order_id, status from shipments where shop_id = $1 and id = $2 for update", [shopId, shipmentId]);
+    if (!shipment.rowCount) throw new DeliveryError("Shipment not found.", 404, "SHIPMENT_NOT_FOUND");
+    if (shipment.rows[0].status !== "failed") throw new DeliveryError("Only failed shipments can be rescheduled.", 409, "SHIPMENT_NOT_FAILED");
+    orderId = shipment.rows[0].order_id;
+    const issue = await client.query("select id from failed_deliveries where shop_id = $1 and shipment_id = $2 and status = 'open' order by created_at desc limit 1 for update", [shopId, shipmentId]);
+    if (!issue.rowCount) throw new DeliveryError("Open failed-delivery issue not found.", 409, "FAILED_DELIVERY_NOT_OPEN");
+    await client.query("update failed_deliveries set status = 'rescheduled', contact_result = $3, reschedule_date = $4, resolved_at = now() where shop_id = $1 and id = $2", [shopId, issue.rows[0].id, input.contactResult, input.rescheduleDate]);
+    await client.query("update shipments set status = 'in_transit', updated_at = now() where shop_id = $1 and id = $2", [shopId, shipmentId]);
+    const note = input.note ?? `Rescheduled for ${input.rescheduleDate}`;
+    await client.query("insert into shipment_tracking_events (shop_id, shipment_id, order_id, status, source, note, created_by) values ($1, $2, $3, 'rescheduled', 'manual', $4, $5)", [shopId, shipmentId, orderId, note, actorId]);
+    await client.query("insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'staff', $2, 'shipment.rescheduled', 'shipment', $3, $4)", [shopId, actorId, shipmentId, JSON.stringify({ orderId, rescheduleDate: input.rescheduleDate, contactResult: input.contactResult })]);
+    await client.query("insert into order_timeline (shop_id, order_id, status, actor_type, actor_id, note) values ($1, $2, 'rescheduled', 'staff', $3, $4)", [shopId, orderId, actorId, note]);
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally { client.release(); }
   return getShipment(shopId, shipmentId);
 }

@@ -104,6 +104,46 @@ Errors:
 - `409 SHIPMENT_ALREADY_EXISTS`
 - `409 ORDER_STATUS_INVALID`
 
+## Failed delivery and rescheduling
+
+### `PATCH /shops/:shopId/shipments/:shipmentId/status` with `status: "failed"`
+
+Request: Include a required `note` describing the failure. Optional `contactResult` records the buyer contact outcome and optional `rescheduleDate` records a date already agreed with the buyer.
+
+Side effects: Creates a `failed_deliveries` issue with status `open`, records the tracking event, and writes `shipment.status_updated` audit metadata. The failed issue remains visible in shipment detail until returned or rescheduled.
+
+### `POST /shops/:shopId/shipments/:shipmentId/reschedule`
+
+Purpose: Resolve an open failed-delivery issue and retry the shipment.
+
+Auth: Requires `delivery:write`.
+
+Request:
+
+```json
+{
+  "rescheduleDate": "2026-10-01",
+  "contactResult": "Buyer confirmed evening delivery",
+  "note": "Retry approved by buyer"
+}
+```
+
+Response: `200`, same shipment detail shape, including `failedDeliveries` history.
+
+Side effects: Marks the open failed-delivery issue `rescheduled`, moves the shipment from `failed` to `in_transit`, adds a `rescheduled` tracking event and order timeline event, and writes `shipment.rescheduled` audit metadata. It does not create a second shipment or alter payment status.
+
+Audit/timeline: Every reschedule writes shipment audit and order timeline entries. Failed and returned transitions remain in the shipment event history.
+
+Cache: Do not cache write responses. Invalidate shipment queues, order detail/list, and buyer tracking.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `403 PERMISSION_DENIED`
+- `404 SHIPMENT_NOT_FOUND`
+- `409 SHIPMENT_NOT_FAILED`
+- `409 FAILED_DELIVERY_NOT_OPEN`
+
 ## `GET /shops/:shopId/shipments/:shipmentId`
 
 Request:

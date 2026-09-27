@@ -24,5 +24,13 @@ export const manualShipmentSchema = z.object({
 
 export const shipmentStatusSchema = z.object({
   status: z.enum(["picked_up", "in_transit", "delivered", "failed", "returned", "cancelled"]),
+  note: z.string().trim().min(3).max(500).optional(),
+  contactResult: z.string().trim().max(240).optional(),
+  rescheduleDate: z.string().date().optional()
+});
+
+export const rescheduleSchema = z.object({
+  rescheduleDate: z.string().date(),
+  contactResult: z.string().trim().min(2).max(240),
   note: z.string().trim().min(3).max(500).optional()
 });

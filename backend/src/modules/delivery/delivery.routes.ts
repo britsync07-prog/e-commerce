@@ -2,8 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { ZodError, type ZodTypeAny } from "zod";
 import { AuthError } from "../auth/auth.service.js";
 import { PermissionError, requireShopPermission } from "../../shared/permissions.js";
-import { createManualShipment, DeliveryError, getShipment, listShipments, updateShipmentStatus } from "./delivery.service.js";
-import { listShipmentsQuerySchema, manualShipmentSchema, shipmentParamsSchema, shipmentStatusSchema, shopParamsSchema } from "./delivery.validators.js";
+import { createManualShipment, DeliveryError, getShipment, listShipments, rescheduleShipment, updateShipmentStatus } from "./delivery.service.js";
+import { listShipmentsQuerySchema, manualShipmentSchema, rescheduleSchema, shipmentParamsSchema, shipmentStatusSchema, shopParamsSchema } from "./delivery.validators.js";
 
 function parse<T extends ZodTypeAny>(schema: T, value: unknown) {
   return schema.parse(value) as T["_output"];
@@ -58,6 +58,18 @@ export async function registerDeliveryRoutes(app: FastifyInstance) {
       const body = parse(shipmentStatusSchema, request.body);
       const session = await requireShopPermission(request, params.shopId, "delivery:write");
       return updateShipmentStatus(params.shopId, params.shipmentId, body, session.user.id as string);
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.post("/shops/:shopId/shipments/:shipmentId/reschedule", async (request, reply) => {
+    try {
+      const params = parse(shipmentParamsSchema, request.params);
+      const body = parse(rescheduleSchema, request.body);
+      const session = await requireShopPermission(request, params.shopId, "delivery:write");
+      return rescheduleShipment(params.shopId, params.shipmentId, body, session.user.id as string);
     } catch (error) {
       const result = handleError(error);
       return reply.code(result.statusCode).send(result.body);
