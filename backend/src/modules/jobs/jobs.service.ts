@@ -25,7 +25,7 @@ export async function retryDeadJob(shopId: string, jobId: string, reason: string
   return { job: result.rows[0] };
 }
 
-export async function claimNextJob(workerId = randomUUID()) {
+export async function claimNextJob(workerId: string = randomUUID()) {
   const client = await db.connect();
   try {
     await client.query("begin");

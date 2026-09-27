@@ -7,6 +7,7 @@
     "dev": "npm run build && node dist/server.js",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
+    "worker": "node dist/worker.js",
     "db:migrate": "node scripts/migrate.mjs",
     "check": "npm run check:api-docs && npm run build && npm test",
     "check:api-docs": "node scripts/check-api-docs.mjs",
