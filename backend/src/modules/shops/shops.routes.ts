@@ -269,6 +269,6 @@ async function getSettings(shopId: string) {
 async function audit(shopId: string, actorId: string, action: string, targetType: string, targetId: string, metadata?: unknown) {
   await db.query(
     "insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'staff', $2, $3, $4, $5, $6)",
-    [shopId, actorId, action, targetType, targetId, metadata ?? null]
+    [shopId, actorId, action, targetType, targetId, metadata === undefined ? null : JSON.stringify(metadata)]
   );
 }
