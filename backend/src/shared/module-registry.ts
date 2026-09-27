@@ -92,7 +92,15 @@ export const backendModules: BackendModule[] = [
     apiDoc: "inventory.md",
     phase: "p0"
   },
-  { key: "inbox", name: "Inbox", status: "planned", owns: ["conversations", "messages", "assignments"], phase: "p0" },
+  {
+    key: "inbox",
+    name: "Inbox",
+    status: "active",
+    owns: ["conversations", "messages", "assignments", "suggest-only AI drafts"],
+    apiBase: "/api/v1/inbox",
+    apiDoc: "inbox.md",
+    phase: "p0"
+  },
   {
     key: "orders",
     name: "Orders",

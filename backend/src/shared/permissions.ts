@@ -8,6 +8,8 @@ export const permissions = [
   "catalog:write",
   "inventory:read",
   "inventory:write",
+  "inbox:read",
+  "inbox:write",
   "delivery:read",
   "delivery:write",
   "orders:read",
@@ -27,9 +29,9 @@ export type Role = "owner" | "admin" | "sales" | "packer" | "marketer" | "accoun
 const rolePermissions: Record<Role, readonly Permission[]> = {
   owner: permissions,
   admin: permissions.filter((permission) => permission !== "team:write"),
-  sales: ["catalog:read", "catalog:write", "inventory:read", "delivery:read", "delivery:write", "orders:read", "orders:write"],
+  sales: ["catalog:read", "catalog:write", "inventory:read", "inbox:read", "inbox:write", "delivery:read", "delivery:write", "orders:read", "orders:write"],
   packer: ["inventory:read", "inventory:write", "delivery:read", "delivery:write", "orders:read", "orders:write"],
-  marketer: ["assets:write", "catalog:read", "orders:read"],
+  marketer: ["assets:write", "catalog:read", "inbox:read", "inbox:write", "orders:read"],
   accountant: ["orders:read", "payments:read", "payments:write", "exports:run"]
 };
 

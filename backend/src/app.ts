@@ -12,6 +12,7 @@ import { registerAuthRoutes } from "./modules/auth/auth.routes.js";
 import { registerCatalogRoutes } from "./modules/catalog/catalog.routes.js";
 import { registerDeliveryRoutes } from "./modules/delivery/delivery.routes.js";
 import { registerHealthRoutes } from "./modules/health/health.routes.js";
+import { registerInboxRoutes } from "./modules/inbox/inbox.routes.js";
 import { registerInventoryRoutes } from "./modules/inventory/inventory.routes.js";
 import { registerOnboardingRoutes } from "./modules/onboarding/onboarding.routes.js";
 import { registerOrderRoutes } from "./modules/orders/orders.routes.js";
@@ -56,6 +57,7 @@ export async function buildApp() {
   await app.register(registerCatalogRoutes, { prefix: "/api/v1/catalog" });
   await app.register(registerDeliveryRoutes, { prefix: "/api/v1/delivery" });
   await app.register(registerHealthRoutes, { prefix: "/api/v1/health" });
+  await app.register(registerInboxRoutes, { prefix: "/api/v1/inbox" });
   await app.register(registerInventoryRoutes, { prefix: "/api/v1/inventory" });
   await app.register(registerShopRoutes, { prefix: "/api/v1/shops" });
   await app.register(registerSystemRoutes, { prefix: "/api/v1/system" });
