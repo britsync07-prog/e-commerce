@@ -58,8 +58,24 @@ export const backendModules: BackendModule[] = [
   },
   { key: "auth", name: "Auth and sessions", status: "planned", owns: ["users", "sessions", "invitations"], phase: "foundation" },
   { key: "shops", name: "Shops and staff", status: "planned", owns: ["shop settings", "roles", "permissions"], phase: "foundation" },
-  { key: "catalog", name: "Catalog", status: "planned", owns: ["products", "variants", "images", "categories"], phase: "p0" },
-  { key: "inventory", name: "Inventory", status: "planned", owns: ["stock ledger", "reservations", "low stock"], phase: "p0" },
+  {
+    key: "catalog",
+    name: "Catalog",
+    status: "active",
+    owns: ["products", "variants", "images", "categories"],
+    apiBase: "/api/v1/catalog",
+    apiDoc: "catalog.md",
+    phase: "p0"
+  },
+  {
+    key: "inventory",
+    name: "Inventory",
+    status: "active",
+    owns: ["stock ledger", "reservations", "low stock"],
+    apiBase: "/api/v1/inventory",
+    apiDoc: "inventory.md",
+    phase: "p0"
+  },
   { key: "inbox", name: "Inbox", status: "planned", owns: ["conversations", "messages", "assignments"], phase: "p0" },
   { key: "orders", name: "Orders", status: "planned", owns: ["draft orders", "confirmed orders", "timeline"], phase: "p0" },
   { key: "delivery", name: "Delivery", status: "planned", owns: ["couriers", "shipments", "tracking events"], phase: "p0" },
