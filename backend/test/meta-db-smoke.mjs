@@ -22,10 +22,13 @@ try {
   const shopId = started.json().shop.id;
   const product = await app.inject({ method: "POST", url: `/api/v1/onboarding/${shopId}/products`, payload: { name: "Meta Catalog Product", price: 700, stock: 2 } });
   assert.equal(product.statusCode, 201, product.body);
-  const created = await app.inject({ method: "POST", url: `/api/v1/meta/shops/${shopId}/connections`, headers: { authorization: `Bearer ${token}` }, payload: { pageId: `page-${stamp}`, credentialRef: "secret-manager/meta/test" } });
-  assert.equal(created.statusCode, 201, created.body);
-  assert.equal(created.json().connection.credentialRef, undefined);
-  assert.equal(created.json().connection.hasCredential, true);
+  const oauthStart = await app.inject({ method: "GET", url: `/api/v1/meta/shops/${shopId}/oauth/start`, headers: { authorization: `Bearer ${token}` } });
+  assert.equal(oauthStart.statusCode, 200, oauthStart.body);
+  assert.match(oauthStart.json().authorizationUrl, /facebook\.com/);
+  const state = await client.query("select id from meta_oauth_states where shop_id = $1 order by created_at desc limit 1", [shopId]);
+  assert.equal(state.rowCount, 1);
+  const inserted = await client.query("insert into meta_connections (shop_id, page_id, credential_ref, encrypted_access_token, settings, created_by) values ($1, $2, 'meta-oauth', 'test-encrypted-token', $3, (select owner_user_id from shops where id = $1)) returning id", [shopId, `page-${stamp}`, JSON.stringify({ pageName: "Smoke Page" })]);
+  assert.equal(inserted.rowCount, 1);
   const listed = await app.inject({ method: "GET", url: `/api/v1/meta/shops/${shopId}/connections`, headers: { authorization: `Bearer ${token}` } });
   assert.equal(listed.statusCode, 200, listed.body);
   assert.equal(listed.json().connections.length, 1);

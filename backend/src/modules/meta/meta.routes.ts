@@ -2,8 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { ZodError, type ZodTypeAny } from "zod";
 import { AuthError } from "../auth/auth.service.js";
 import { PermissionError, requireShopPermission } from "../../shared/permissions.js";
-import { createConnection, getCatalogSync, listConnections, MetaError, previewCatalog, saveCatalogSync, updateConnection } from "./meta.service.js";
-import { catalogSyncSchema, connectionParamsSchema, createConnectionSchema, shopParamsSchema, updateConnectionSchema } from "./meta.validators.js";
+import { completeOAuth, getCatalogSync, handleOAuthCallback, listConnections, MetaError, previewCatalog, saveCatalogSync, startOAuth, updateConnection } from "./meta.service.js";
+import { catalogSyncSchema, connectionParamsSchema, oauthCompleteSchema, shopParamsSchema, updateConnectionSchema } from "./meta.validators.js";
 
 function parse<T extends ZodTypeAny>(schema: T, value: unknown) { return schema.parse(value) as T["_output"]; }
 function handleError(error: unknown) {
@@ -17,8 +17,16 @@ export async function registerMetaRoutes(app: FastifyInstance) {
     try { const params = parse(shopParamsSchema, request.params); await requireShopPermission(request, params.shopId, "settings:read"); return listConnections(params.shopId); }
     catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
   });
-  app.post("/shops/:shopId/connections", async (request, reply) => {
-    try { const params = parse(shopParamsSchema, request.params); const body = parse(createConnectionSchema, request.body); const session = await requireShopPermission(request, params.shopId, "settings:write"); return reply.code(201).send(await createConnection(params.shopId, body, session.user.id as string)); }
+  app.get("/shops/:shopId/oauth/start", async (request, reply) => {
+    try { const params = parse(shopParamsSchema, request.params); const session = await requireShopPermission(request, params.shopId, "settings:write"); return startOAuth(params.shopId, session.user.id as string); }
+    catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
+  });
+  app.get("/oauth/callback", async (request, reply) => {
+    try { const query = request.query as { code?: string; state?: string; error_reason?: string }; if (query.error_reason) throw new MetaError("Meta OAuth was cancelled or denied.", 400, "META_OAUTH_DENIED"); if (!query.code || !query.state) throw new MetaError("Meta OAuth callback is missing code or state.", 400, "META_OAUTH_CALLBACK_INVALID"); return handleOAuthCallback(query.code, query.state); }
+    catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
+  });
+  app.post("/shops/:shopId/oauth/complete", async (request, reply) => {
+    try { const params = parse(shopParamsSchema, request.params); const body = parse(oauthCompleteSchema, request.body); const session = await requireShopPermission(request, params.shopId, "settings:write"); return reply.code(201).send(await completeOAuth(params.shopId, session.user.id as string, body)); }
     catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
   });
   app.patch("/shops/:shopId/connections/:connectionId", async (request, reply) => {

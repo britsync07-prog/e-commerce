@@ -18,19 +18,59 @@ Cache: Client may cache briefly; refetch after connection changes.
 
 Errors: `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
 
-## `POST /shops/:shopId/connections`
+## `GET /shops/:shopId/oauth/start`
 
-Request: `{ "pageId": "page-id", "instagramAccountId": "instagram-id", "credentialRef": "secret-manager/path", "settings": {} }`. At least one account ID is required. `credentialRef` is an opaque reference; raw access tokens must not be sent to this API.
+Purpose: Start the seller's Meta OAuth flow from the Connect button.
 
-Response: `201` with the connection and `hasCredential: true`; the credential reference is omitted.
+Auth: Requires `settings:write`.
 
-Side effects: Stores connection metadata for later provider workers.
+Request: Path `shopId` UUID. No token or Page credential is sent by the seller.
 
-Audit/timeline: Writes `meta.connection_created` audit.
+Response: `{ "authorizationUrl": "https://www.facebook.com/...", "expiresInSeconds": 600 }`.
+
+Side effects: Stores a short-lived, one-time OAuth state bound to the shop and current staff user.
+
+Audit/timeline: No connection audit until a Page is selected.
+
+Cache: Do not cache the authorization URL.
+
+Errors: `META_OAUTH_NOT_CONFIGURED`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
+
+## `GET /oauth/callback`
+
+Purpose: Receive Meta's OAuth authorization code, exchange it server-side, and load the Pages granted by the seller.
+
+Auth: Meta calls this public callback with `code` and `state`; state validation binds it to the original authenticated user and shop.
+
+Request: Meta callback query parameters `code` and `state`.
+
+Response: `{ "shopId": "uuid", "state": "...", "pageCount": 2 }`. The frontend then asks the seller to choose a Page.
+
+Side effects: Exchanges the code without exposing the App Secret to the browser, encrypts returned tokens, and stores the granted Page list temporarily.
+
+Audit/timeline: No connection audit until Page selection completes.
+
+Cache: Do not cache.
+
+Errors: `META_OAUTH_CALLBACK_INVALID`, `META_OAUTH_DENIED`, `META_OAUTH_STATE_INVALID`, `META_OAUTH_EXCHANGE_FAILED`, `META_PAGES_LOAD_FAILED`, `META_NO_PAGES`.
+
+## `POST /shops/:shopId/oauth/complete`
+
+Purpose: Save the Page selected by the seller after OAuth.
+
+Auth: Requires `settings:write` and the same user who started OAuth.
+
+Request: `{ "state": "one-time-state", "pageId": "facebook-page-id" }`.
+
+Response: `201` with the connection and `hasCredential: true`; tokens are never returned.
+
+Side effects: Encrypts and stores the selected Page access token server-side and enables the connection.
+
+Audit/timeline: Writes `meta.connection_created` with `via: oauth`; token values are never audited.
 
 Cache: Do not cache the write response.
 
-Errors: `META_CONNECTION_CONFLICT`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
+Errors: `META_OAUTH_SELECTION_INVALID`, `META_PAGE_NOT_GRANTED`, `META_CONNECTION_CONFLICT`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
 
 ## `PATCH /shops/:shopId/connections/:connectionId`
 
@@ -46,7 +86,7 @@ Cache: Invalidate connection reads.
 
 Errors: `META_CONNECTION_NOT_FOUND`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
 
-Provider verification and outbound Graph API calls are intentionally deferred until the Meta worker and secret-manager integration are enabled.
+Provider verification and outbound Graph API workers are intentionally deferred until the Meta connection is configured. Sellers never provide API tokens; the platform requires its own Meta App ID, App Secret, redirect URI, and 32-byte encryption key in server environment variables.
 
 ## `GET /shops/:shopId/catalog-sync`
 

@@ -1,4 +1,4 @@
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { config } from "../../shared/config.js";
 import { db } from "../../shared/db.js";
 
@@ -11,9 +11,73 @@ export async function listConnections(shopId: string) {
   return { connections: result.rows.map((row) => ({ ...row, hasCredential: true })) };
 }
 
-export async function createConnection(shopId: string, input: { pageId?: string; instagramAccountId?: string; credentialRef: string; settings?: Record<string, unknown> }, actorId: string) {
+export async function startOAuth(shopId: string, userId: string) {
+  ensureOAuthConfig();
+  const state = randomBytes(32).toString("base64url");
+  await db.query("insert into meta_oauth_states (state_hash, shop_id, user_id, expires_at) values ($1, $2, $3, now() + interval '10 minutes')", [hash(state), shopId, userId]);
+  const url = new URL(`https://www.facebook.com/${config.metaGraphVersion}/dialog/oauth`);
+  url.searchParams.set("client_id", config.metaAppId!);
+  url.searchParams.set("redirect_uri", oauthRedirectUri());
+  url.searchParams.set("state", state);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("scope", config.metaOAuthScopes);
+  return { authorizationUrl: url.toString(), expiresInSeconds: 600 };
+}
+
+export async function handleOAuthCallback(code: string, state: string) {
+  ensureOAuthConfig();
+  const stateResult = await db.query("select id, shop_id, user_id, status, expires_at from meta_oauth_states where state_hash = $1", [hash(state)]);
+  if (!stateResult.rowCount || stateResult.rows[0].status !== "pending" || new Date(stateResult.rows[0].expires_at).getTime() <= Date.now()) throw new MetaError("Meta OAuth state is invalid or expired.", 400, "META_OAUTH_STATE_INVALID");
+  const userToken = await exchangeCode(code);
+  const pages = await fetchPages(userToken);
+  if (!pages.length) throw new MetaError("No Facebook Pages were granted to this account.", 409, "META_NO_PAGES");
+  await db.query("update meta_oauth_states set status = 'awaiting_page', user_token_ciphertext = $2, pages = $3 where id = $1", [stateResult.rows[0].id, encrypt(userToken), JSON.stringify(pages.map((page) => ({ id: page.id, name: page.name, instagramAccountId: page.instagram_business_account?.id ?? null, accessTokenCiphertext: encrypt(page.access_token) })))]);
+  return { shopId: stateResult.rows[0].shop_id, state, pageCount: pages.length };
+}
+
+export async function completeOAuth(shopId: string, userId: string, input: { state: string; pageId: string }) {
+  const stateResult = await db.query("select id, user_id, status, pages from meta_oauth_states where state_hash = $1 and shop_id = $2", [hash(input.state), shopId]);
+  if (!stateResult.rowCount || stateResult.rows[0].user_id !== userId || stateResult.rows[0].status !== "awaiting_page") throw new MetaError("Meta page selection is invalid or expired.", 400, "META_OAUTH_SELECTION_INVALID");
+  const page = (stateResult.rows[0].pages as Array<{ id: string; name: string; instagramAccountId: string | null; accessTokenCiphertext: string }>).find((item) => item.id === input.pageId);
+  if (!page) throw new MetaError("Selected Facebook Page was not granted by Meta.", 400, "META_PAGE_NOT_GRANTED");
+  const result = await db.query(`insert into meta_connections (shop_id, page_id, instagram_account_id, credential_ref, encrypted_access_token, settings, created_by) values ($1, $2, $3, 'meta-oauth', $4, $5, $6) on conflict (shop_id, page_id, instagram_account_id) do update set encrypted_access_token = excluded.encrypted_access_token, status = 'active', updated_at = now() returning id, shop_id, page_id, instagram_account_id, status, settings, created_at, updated_at`, [shopId, page.id, page.instagramAccountId, page.accessTokenCiphertext, JSON.stringify({ pageName: page.name }), userId]);
+  await db.query("update meta_oauth_states set status = 'used', used_at = now() where id = $1", [stateResult.rows[0].id]);
+  await audit(shopId, userId, "meta.connection_created", "meta_connection", result.rows[0].id, { pageId: page.id, pageName: page.name, via: "oauth" });
+  return { connection: { ...result.rows[0], hasCredential: true } };
+}
+
+async function exchangeCode(code: string) {
+  const url = new URL(`https://graph.facebook.com/${config.metaGraphVersion}/oauth/access_token`);
+  url.searchParams.set("client_id", config.metaAppId!);
+  url.searchParams.set("client_secret", config.metaAppSecret!);
+  url.searchParams.set("redirect_uri", oauthRedirectUri());
+  url.searchParams.set("code", code);
+  const response = await fetch(url);
+  const body = await response.json() as { access_token?: string; error?: { message?: string } };
+  if (!response.ok || !body.access_token) throw new MetaError(body.error?.message ?? "Meta OAuth code exchange failed.", 502, "META_OAUTH_EXCHANGE_FAILED");
+  return body.access_token;
+}
+
+async function fetchPages(userToken: string) {
+  const url = new URL(`https://graph.facebook.com/${config.metaGraphVersion}/me/accounts`);
+  url.searchParams.set("fields", "id,name,access_token,instagram_business_account");
+  url.searchParams.set("access_token", userToken);
+  url.searchParams.set("appsecret_proof", createHmac("sha256", config.metaAppSecret!).update(userToken).digest("hex"));
+  const response = await fetch(url);
+  const body = await response.json() as { data?: Array<{ id: string; name: string; access_token: string; instagram_business_account?: { id: string } }>; error?: { message?: string } };
+  if (!response.ok || !body.data) throw new MetaError(body.error?.message ?? "Meta Pages could not be loaded.", 502, "META_PAGES_LOAD_FAILED");
+  return body.data;
+}
+
+function ensureOAuthConfig() { if (!config.metaAppId || !config.metaAppSecret || !config.metaOAuthRedirectUri || !config.metaTokenEncryptionKey) throw new MetaError("Meta OAuth is not configured.", 503, "META_OAUTH_NOT_CONFIGURED"); }
+function oauthRedirectUri() { return config.metaOAuthRedirectUri!; }
+function hash(value: string) { return createHash("sha256").update(value).digest("hex"); }
+function encrypt(value: string) { const key = Buffer.from(config.metaTokenEncryptionKey!, "hex"); const iv = randomBytes(12); const cipher = createCipheriv("aes-256-gcm", key, iv); const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]); return [iv, cipher.getAuthTag(), ciphertext].map((part) => part.toString("base64url")).join("."); }
+export function decryptToken(value: string) { const [iv, tag, ciphertext] = value.split(".").map((part) => Buffer.from(part, "base64url")); const decipher = createDecipheriv("aes-256-gcm", Buffer.from(config.metaTokenEncryptionKey!, "hex"), iv); decipher.setAuthTag(tag); return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8"); }
+
+export async function createConnection(shopId: string, input: { pageId: string; encryptedAccessToken: string; instagramAccountId?: string | null; pageName?: string }, actorId: string) {
   try {
-    const result = await db.query(`insert into meta_connections (shop_id, page_id, instagram_account_id, credential_ref, settings, created_by) values ($1, $2, $3, $4, $5, $6) returning id, shop_id, page_id, instagram_account_id, status, settings, created_at, updated_at`, [shopId, input.pageId ?? null, input.instagramAccountId ?? null, input.credentialRef, JSON.stringify(input.settings ?? {}), actorId]);
+    const result = await db.query(`insert into meta_connections (shop_id, page_id, instagram_account_id, credential_ref, encrypted_access_token, settings, created_by) values ($1, $2, $3, 'meta-oauth', $4, $5, $6) returning id, shop_id, page_id, instagram_account_id, status, settings, created_at, updated_at`, [shopId, input.pageId, input.instagramAccountId ?? null, input.encryptedAccessToken, JSON.stringify({ pageName: input.pageName }), actorId]);
     await audit(shopId, actorId, "meta.connection_created", "meta_connection", result.rows[0].id, { pageId: input.pageId, instagramAccountId: input.instagramAccountId });
     return { connection: { ...result.rows[0], hasCredential: true } };
   } catch (error) {
