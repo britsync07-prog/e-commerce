@@ -20,6 +20,8 @@ try {
   const started = await app.inject({ method: "POST", url: "/api/v1/onboarding/start", headers: { authorization: `Bearer ${token}` }, payload: { ownerName: "Meta Smoke", language: "en", shopName: "Meta Shop", subdomain: `meta-${stamp}`, category: "test", country: "Bangladesh", currency: "BDT" } });
   assert.equal(started.statusCode, 201, started.body);
   const shopId = started.json().shop.id;
+  const product = await app.inject({ method: "POST", url: `/api/v1/onboarding/${shopId}/products`, payload: { name: "Meta Catalog Product", price: 700, stock: 2 } });
+  assert.equal(product.statusCode, 201, product.body);
   const created = await app.inject({ method: "POST", url: `/api/v1/meta/shops/${shopId}/connections`, headers: { authorization: `Bearer ${token}` }, payload: { pageId: `page-${stamp}`, credentialRef: "secret-manager/meta/test" } });
   assert.equal(created.statusCode, 201, created.body);
   assert.equal(created.json().connection.credentialRef, undefined);
@@ -27,6 +29,14 @@ try {
   const listed = await app.inject({ method: "GET", url: `/api/v1/meta/shops/${shopId}/connections`, headers: { authorization: `Bearer ${token}` } });
   assert.equal(listed.statusCode, 200, listed.body);
   assert.equal(listed.json().connections.length, 1);
+  const connectionId = listed.json().connections[0].id;
+  const configured = await app.inject({ method: "PUT", url: `/api/v1/meta/shops/${shopId}/catalog-sync`, headers: { authorization: `Bearer ${token}` }, payload: { connectionId, skipUnpublished: true, skipOutOfStock: true } });
+  assert.equal(configured.statusCode, 200, configured.body);
+  assert.equal(configured.json().catalogSync.status, "pending");
+  const preview = await app.inject({ method: "POST", url: `/api/v1/meta/shops/${shopId}/catalog-sync/preview`, headers: { authorization: `Bearer ${token}` }, payload: { skipUnpublished: true, skipOutOfStock: true } });
+  assert.equal(preview.statusCode, 200, preview.body);
+  assert.equal(preview.json().summary.products, 1);
+  assert.equal(preview.json().summary.variants, 1);
 
   const payload = { object: "page", entry: [{ id: `page-${stamp}`, changes: [{ field: "messages", value: { text: "hello" } }] }] };
   const signature = `sha256=${crypto.createHmac("sha256", process.env.META_WEBHOOK_SECRET).update(JSON.stringify(payload)).digest("hex")}`;

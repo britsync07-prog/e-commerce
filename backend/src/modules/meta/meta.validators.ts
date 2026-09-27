@@ -11,3 +11,8 @@ export const createConnectionSchema = z.object({
   if (!value.pageId && !value.instagramAccountId) context.addIssue({ code: z.ZodIssueCode.custom, message: "pageId or instagramAccountId is required" });
 });
 export const updateConnectionSchema = z.object({ status: z.enum(["active", "disabled", "error"]) });
+export const catalogSyncSchema = z.object({
+  connectionId: z.string().uuid(),
+  skipUnpublished: z.boolean().default(true),
+  skipOutOfStock: z.boolean().default(true)
+});

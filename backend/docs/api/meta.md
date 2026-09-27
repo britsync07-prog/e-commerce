@@ -47,3 +47,57 @@ Cache: Invalidate connection reads.
 Errors: `META_CONNECTION_NOT_FOUND`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
 
 Provider verification and outbound Graph API calls are intentionally deferred until the Meta worker and secret-manager integration are enabled.
+
+## `GET /shops/:shopId/catalog-sync`
+
+Purpose: Read the shop's Meta catalog sync configuration and last known state.
+
+Auth: Requires `settings:read`.
+
+Request: Path `shopId` UUID.
+
+Response: `{ "catalogSync": { "status": "pending", "settings": { "skipUnpublished": true, "skipOutOfStock": true } } }`, or `status: "not_configured"`.
+
+Side effects: None.
+
+Audit/timeline: None.
+
+Cache: Client may cache briefly; refetch after configuration or catalog changes.
+
+Errors: `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
+
+## `PUT /shops/:shopId/catalog-sync`
+
+Purpose: Configure which local products are eligible for the future Meta catalog worker.
+
+Auth: Requires `settings:write`.
+
+Request: `{ "connectionId": "uuid", "skipUnpublished": true, "skipOutOfStock": true }`.
+
+Response: Updated `catalogSync` state with `status: "pending"`.
+
+Side effects: Saves sync settings; it does not call Meta or change local catalog data.
+
+Audit/timeline: Writes `meta.catalog_sync_configured` audit.
+
+Cache: Invalidate catalog sync state.
+
+Errors: `META_CONNECTION_REQUIRED`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
+
+## `POST /shops/:shopId/catalog-sync/preview`
+
+Purpose: Evaluate current products and inventory against sync settings before any provider mutation.
+
+Auth: Requires `settings:read`.
+
+Request: `{ "skipUnpublished": true, "skipOutOfStock": true }`.
+
+Response: `{ "summary": { "products": 1, "variants": 1, "skippedVariants": 2 }, "products": [{ "id": "uuid", "variants": [{ "stock": 4 }] }] }`.
+
+Side effects: None. This is a read-only preview.
+
+Audit/timeline: None.
+
+Cache: Do not cache for the final sync decision; inventory may change.
+
+Errors: `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
