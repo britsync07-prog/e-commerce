@@ -84,3 +84,295 @@ Errors:
 - `403 SHOP_ACCESS_DENIED`
 - `403 PERMISSION_DENIED`
 
+## `GET /:shopId/team`
+
+Purpose:
+- List shop team members and fixed role permission map.
+
+Auth/permission:
+- Bearer token required.
+- Requires `team:read`.
+
+Request:
+- Path `shopId`: shop UUID.
+
+Response:
+- `200`
+
+```json
+{
+  "team": [
+    {
+      "user_id": "uuid",
+      "role": "owner",
+      "status": "active",
+      "name": "Owner Name",
+      "email": "owner@example.com"
+    }
+  ],
+  "roles": {
+    "sales": ["catalog:read", "orders:write"]
+  }
+}
+```
+
+Side effects:
+- None.
+
+Audit/timeline:
+- None for read.
+
+Cache:
+- Client can cache briefly.
+- Refetch after team changes.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `403 SHOP_ACCESS_DENIED`
+- `403 PERMISSION_DENIED`
+
+## `POST /:shopId/team`
+
+Purpose:
+- Add an already registered user to a shop with a fixed non-owner role.
+
+Auth/permission:
+- Bearer token required.
+- Requires `team:write`.
+
+Request:
+
+```json
+{
+  "email": "staff@example.com",
+  "role": "sales"
+}
+```
+
+Response:
+- `201`
+
+```json
+{
+  "member": {
+    "user_id": "uuid",
+    "role": "sales",
+    "status": "active",
+    "email": "staff@example.com"
+  }
+}
+```
+
+Side effects:
+- Inserts or reactivates `shop_staff`.
+- Writes audit action `shop.team_member_added`.
+
+Audit/timeline:
+- Audit target type: `user`.
+
+Cache:
+- Do not cache write response.
+- Refetch permissions and team lists.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `403 SHOP_ACCESS_DENIED`
+- `403 PERMISSION_DENIED`
+- `404 USER_NOT_FOUND`
+
+## `PATCH /:shopId/team/:userId`
+
+Purpose:
+- Change a team member role or active/disabled status.
+- Blocks owner self-removal and owner role changes until transfer flow exists.
+
+Auth/permission:
+- Bearer token required.
+- Requires `team:write`.
+
+Request:
+
+```json
+{
+  "role": "packer",
+  "status": "active"
+}
+```
+
+Response:
+- `200`
+
+```json
+{
+  "member": {
+    "user_id": "uuid",
+    "role": "packer",
+    "status": "active"
+  }
+}
+```
+
+Side effects:
+- Updates `shop_staff`.
+- Writes audit action `shop.team_member_updated`.
+
+Audit/timeline:
+- Audit target type: `user`.
+
+Cache:
+- Do not cache write response.
+- Refetch permissions and team lists.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `403 SHOP_ACCESS_DENIED`
+- `403 PERMISSION_DENIED`
+- `404 TEAM_MEMBER_NOT_FOUND`
+- `409 OWNER_SELF_REMOVE_BLOCKED`
+- `409 OWNER_TRANSFER_REQUIRED`
+
+## `GET /:shopId/settings`
+
+Purpose:
+- Read shop settings used by dashboard, storefront, checkout, AI, and policies.
+
+Auth/permission:
+- Bearer token required.
+- Requires `settings:read`.
+
+Request:
+- Path `shopId`: shop UUID.
+
+Response:
+- `200`
+
+```json
+{
+  "settings": {
+    "id": "uuid",
+    "display_name": "Nafis Fashion",
+    "subdomain": "nafis-fashion",
+    "currency": "BDT",
+    "policy_defaults": {
+      "deliveryCharge": 80,
+      "returnDays": 3,
+      "codAllowed": true
+    },
+    "ai_mode": "suggest"
+  }
+}
+```
+
+Side effects:
+- None.
+
+Audit/timeline:
+- None for read.
+
+Cache:
+- Client-side cache is allowed for settings reads.
+- Refetch after settings changes.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `403 SHOP_ACCESS_DENIED`
+- `403 PERMISSION_DENIED`
+- `404 SHOP_NOT_FOUND`
+
+## `PATCH /:shopId/settings`
+
+Purpose:
+- Update safe shop settings after launch without changing subdomain/domain routing.
+
+Auth/permission:
+- Bearer token required.
+- Requires `settings:write`.
+
+Request:
+
+```json
+{
+  "displayName": "Nafis Fashion",
+  "policyDefaults": {
+    "deliveryCharge": 80,
+    "returnDays": 7,
+    "codAllowed": true
+  },
+  "aiMode": "suggest"
+}
+```
+
+Response:
+- `200`
+- Same shape as settings read.
+
+Side effects:
+- Updates `shops`.
+- Writes audit action `shop.settings_updated`.
+
+Audit/timeline:
+- Audit target type: `shop`.
+
+Cache:
+- Do not cache write response.
+- Invalidate dashboard settings, storefront shop reads, checkout policy reads, and AI policy context.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `403 SHOP_ACCESS_DENIED`
+- `403 PERMISSION_DENIED`
+- `404 SHOP_NOT_FOUND`
+
+## `GET /:shopId/audit`
+
+Purpose:
+- Read immutable audit events for shop security/history.
+
+Auth/permission:
+- Bearer token required.
+- Requires `settings:read`.
+
+Request:
+- Path `shopId`: shop UUID.
+
+Response:
+- `200`
+
+```json
+{
+  "audit": [
+    {
+      "id": "uuid",
+      "actor_type": "staff",
+      "actor_id": "uuid",
+      "action": "shop.settings_updated",
+      "target_type": "shop",
+      "target_id": "uuid",
+      "metadata": ["displayName"],
+      "created_at": "2026-09-27T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+Side effects:
+- None.
+
+Audit/timeline:
+- Audit log is append-only through backend writes.
+- This endpoint does not create or mutate audit rows.
+
+Cache:
+- Client can cache briefly.
+- Refetch after sensitive actions.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `403 SHOP_ACCESS_DENIED`
+- `403 PERMISSION_DENIED`

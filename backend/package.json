@@ -19,6 +19,7 @@
     "test:delivery-db": "npm run build && node test/delivery-db-smoke.mjs",
     "test:inbox-db": "npm run build && node test/inbox-db-smoke.mjs",
     "test:order-drafts-db": "npm run build && node test/order-drafts-db-smoke.mjs",
+    "test:team-settings-db": "npm run build && node test/team-settings-db-smoke.mjs",
     "test:onboarding": "npm run build && node test/onboarding.integration.mjs"
   },
   "dependencies": {
