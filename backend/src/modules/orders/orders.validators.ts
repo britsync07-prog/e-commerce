@@ -41,3 +41,42 @@ export const updateStatusSchema = z.object({
   status: z.enum(["confirmed", "packed", "shipped", "delivered", "cancelled", "returned"]),
   reason: z.string().trim().min(3).max(500).optional()
 });
+
+const draftCustomerSchema = z.object({
+  name: z.string().trim().min(2).max(120).optional(),
+  phone: z.string().trim().min(6).max(40).optional(),
+  address: z.string().trim().min(8).max(500).optional(),
+  city: z.string().trim().max(100).optional(),
+  area: z.string().trim().max(100).optional()
+});
+
+const draftItemSchema = z.object({
+  variantId: z.string().uuid(),
+  quantity: z.coerce.number().int().min(1).max(100),
+  confidence: z.coerce.number().min(0).max(1).default(0.5)
+});
+
+export const orderDraftParamsSchema = z.object({
+  shopId: z.string().uuid(),
+  draftId: z.string().uuid()
+});
+
+export const orderDraftListQuerySchema = z.object({
+  status: z.enum(["draft", "ready", "confirmed", "cancelled"]).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50)
+});
+
+export const createOrderDraftSchema = z.object({
+  conversationId: z.string().uuid().optional(),
+  customer: draftCustomerSchema.default({}),
+  items: z.array(draftItemSchema).max(50).default([]),
+  paymentMethod: z.enum(["cod"]).default("cod"),
+  confidence: z.coerce.number().min(0).max(1).default(0.5)
+});
+
+export const updateOrderDraftSchema = z.object({
+  customer: draftCustomerSchema.optional(),
+  items: z.array(draftItemSchema).max(50).optional(),
+  status: z.enum(["draft", "ready", "cancelled"]).optional(),
+  confidence: z.coerce.number().min(0).max(1).optional()
+});

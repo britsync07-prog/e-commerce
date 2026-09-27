@@ -249,3 +249,263 @@ Errors:
 - `404 ORDER_NOT_FOUND`
 - `409 ORDER_STATUS_UNCHANGED`
 - `409 ORDER_STATUS_INVALID`
+
+## `GET /shops/:shopId/drafts`
+
+Purpose:
+- Staff order-draft list for chat/manual order intake.
+
+Auth/permission:
+- Bearer token required.
+- Requires `orders:read` on `shopId`.
+
+Request:
+- Path `shopId`: shop UUID.
+- Query `status`: optional `draft`, `ready`, `confirmed`, `cancelled`.
+- Query `limit`: optional number from `1` to `100`, default `50`.
+
+Response:
+- `200`
+
+```json
+{
+  "drafts": [
+    {
+      "id": "uuid",
+      "conversation_id": "uuid",
+      "status": "ready",
+      "customer_snapshot": {
+        "name": "Buyer Name",
+        "phone": "+8801700000000",
+        "address": "House 1, Road 2, Dhaka"
+      },
+      "risk_status": "safe",
+      "risk_reasons": [],
+      "item_count": 1
+    }
+  ]
+}
+```
+
+Side effects:
+- None.
+
+Audit/timeline:
+- None for reads.
+
+Cache:
+- Client-side cache is allowed briefly.
+- Refetch after draft writes or confirmation.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `403 PERMISSION_DENIED`
+
+## `POST /shops/:shopId/drafts`
+
+Purpose:
+- Create an editable order draft from chat/manual intake.
+- Allows missing fields so staff can collect one missing field at a time.
+
+Auth/permission:
+- Bearer token required.
+- Requires `orders:write` on `shopId`.
+
+Request:
+
+```json
+{
+  "conversationId": "uuid",
+  "customer": {
+    "name": "Buyer Name",
+    "phone": "+8801700000000",
+    "address": "House 1, Road 2, Dhaka"
+  },
+  "items": [
+    {
+      "variantId": "uuid",
+      "quantity": 1,
+      "confidence": 0.8
+    }
+  ],
+  "paymentMethod": "cod",
+  "confidence": 0.8
+}
+```
+
+Response:
+- `201`
+- Same shape as draft detail.
+
+Side effects:
+- Inserts `order_drafts` and `order_draft_items`.
+- Writes audit action `order_draft.created`.
+
+Audit/timeline:
+- Audit target type: `order_draft`.
+- No order timeline until confirmation creates an order.
+
+Cache:
+- Do not cache write response.
+- Invalidate draft lists and conversation detail if linked.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `403 PERMISSION_DENIED`
+- `404 CONVERSATION_NOT_FOUND`
+- `404 VARIANT_NOT_FOUND`
+
+## `GET /shops/:shopId/drafts/:draftId`
+
+Purpose:
+- Staff draft detail with current variant stock.
+
+Auth/permission:
+- Bearer token required.
+- Requires `orders:read` on `shopId`.
+
+Request:
+- Path `shopId`: shop UUID.
+- Path `draftId`: draft UUID.
+
+Response:
+- `200`
+
+```json
+{
+  "draft": {
+    "id": "uuid",
+    "status": "ready",
+    "risk_status": "safe",
+    "risk_reasons": []
+  },
+  "items": [
+    {
+      "variant_id": "uuid",
+      "quantity": 1,
+      "price": "500.00",
+      "stock": 4
+    }
+  ]
+}
+```
+
+Side effects:
+- None.
+
+Audit/timeline:
+- None for reads.
+
+Cache:
+- Client-side cache is allowed briefly.
+- Do not trust cached stock for confirmation.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `403 PERMISSION_DENIED`
+- `404 ORDER_DRAFT_NOT_FOUND`
+
+## `PATCH /shops/:shopId/drafts/:draftId`
+
+Purpose:
+- Update customer fields, item list, status, or confidence.
+- Cancelling a draft keeps conversation history.
+
+Auth/permission:
+- Bearer token required.
+- Requires `orders:write` on `shopId`.
+
+Request:
+
+```json
+{
+  "customer": {
+    "address": "House 1, Road 2, Dhaka"
+  },
+  "items": [
+    {
+      "variantId": "uuid",
+      "quantity": 1,
+      "confidence": 0.9
+    }
+  ],
+  "status": "ready"
+}
+```
+
+Response:
+- `200`
+- Same shape as draft detail.
+
+Side effects:
+- Updates draft customer snapshot/risk/status.
+- Replaces draft items when `items` is provided.
+- Writes audit action `order_draft.updated` or `order_draft.cancelled`.
+
+Audit/timeline:
+- Audit target type: `order_draft`.
+
+Cache:
+- Do not cache write response.
+- Invalidate draft lists/detail.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `403 PERMISSION_DENIED`
+- `404 ORDER_DRAFT_NOT_FOUND`
+- `404 VARIANT_NOT_FOUND`
+- `409 ORDER_DRAFT_CONFIRMED`
+- `409 ORDER_DRAFT_INCOMPLETE`
+
+## `POST /shops/:shopId/drafts/:draftId/confirm`
+
+Purpose:
+- Confirm a complete order draft.
+- Creates a real order, locks product/price/customer snapshots, and reserves stock.
+
+Auth/permission:
+- Bearer token required.
+- Requires `orders:write` on `shopId`.
+
+Request:
+- Path `shopId`: shop UUID.
+- Path `draftId`: draft UUID.
+- No body.
+
+Response:
+- `201`
+- Same shape as buyer/staff order detail.
+
+Side effects:
+- Validates phone, address, item, quantity, COD policy, and stock.
+- Creates or updates customer and address.
+- Creates `orders` and `order_items`.
+- Writes negative `inventory_ledger` rows.
+- Marks draft `confirmed` with `confirmed_order_id`.
+- Writes order timeline `confirmed`.
+- Writes audit action `order_draft.confirmed`.
+
+Audit/timeline:
+- Audit target type: `order_draft`.
+- Order timeline actor type: `staff`.
+
+Cache:
+- Do not cache write response.
+- Invalidate draft lists, order lists, storefront stock reads, and buyer tracking.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `403 PERMISSION_DENIED`
+- `404 ORDER_DRAFT_NOT_FOUND`
+- `404 SHOP_NOT_FOUND`
+- `404 VARIANT_NOT_FOUND`
+- `409 ORDER_DRAFT_CANCELLED`
+- `409 ORDER_DRAFT_CONFIRMED`
+- `409 ORDER_DRAFT_INCOMPLETE`
+- `409 COD_NOT_ALLOWED`
+- `409 STOCK_UNAVAILABLE`
