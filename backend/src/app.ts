@@ -25,6 +25,7 @@ import { registerStorefrontRoutes } from "./modules/storefront/storefront.routes
 import { registerSystemRoutes } from "./modules/system/system.routes.js";
 import { registerMetaRoutes } from "./modules/meta/meta.routes.js";
 import { registerWebhookRoutes } from "./modules/webhooks/webhooks.routes.js";
+import { registerAiRoutes } from "./modules/ai/ai.routes.js";
 
 export async function buildApp() {
   const app = Fastify({
@@ -76,6 +77,7 @@ export async function buildApp() {
   await app.register(registerStorefrontRoutes, { prefix: "/api/v1/storefront" });
   await app.register(registerMetaRoutes, { prefix: "/api/v1/meta" });
   await app.register(registerWebhookRoutes, { prefix: "/api/v1/webhooks" });
+  await app.register(registerAiRoutes, { prefix: "/api/v1/ai" });
 
   return app;
 }
