@@ -11,7 +11,7 @@ Purpose:
 Auth:
 - Storefront checkout is public.
 - Tracking is public but requires order ID and matching phone.
-- Dashboard order APIs will require staff permissions when added.
+- Dashboard order APIs require staff session plus shop permission.
 
 ## `POST /checkout`
 
@@ -117,3 +117,135 @@ Errors:
 - `400 VALIDATION_ERROR`
 - `404 ORDER_NOT_FOUND`
 
+## `GET /shops/:shopId/orders`
+
+Purpose:
+- Staff dashboard order list.
+- Supports status filtering for operations queues.
+
+Auth/permission:
+- Bearer token required.
+- Requires `orders:read` on `shopId`.
+
+Request:
+- Path `shopId`: shop UUID.
+- Query `status`: optional `new`, `confirmed`, `packed`, `shipped`, `delivered`, `cancelled`, `returned`.
+- Query `limit`: optional number from `1` to `100`, default `50`.
+
+Response:
+- `200`
+
+```json
+{
+  "orders": [
+    {
+      "id": "uuid",
+      "shop_id": "uuid",
+      "status": "confirmed",
+      "currency": "BDT",
+      "subtotal": "1000.00",
+      "delivery_charge": "0.00",
+      "total": "1000.00",
+      "payment_method": "cod",
+      "buyer_snapshot": {
+        "name": "Buyer Name",
+        "phone": "+8801700000000"
+      },
+      "item_count": 2
+    }
+  ]
+}
+```
+
+Side effects:
+- None.
+
+Audit/timeline:
+- None for reads.
+
+Cache:
+- Client-side cache is allowed for short dashboard reads.
+- Server must not trust cached data for status or stock writes.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `403 PERMISSION_DENIED`
+
+## `GET /shops/:shopId/orders/:orderId`
+
+Purpose:
+- Staff order detail with items and full timeline.
+
+Auth/permission:
+- Bearer token required.
+- Requires `orders:read` on `shopId`.
+
+Request:
+- Path `shopId`: shop UUID.
+- Path `orderId`: order UUID.
+
+Response:
+- Same order/items/timeline shape as checkout, with staff timeline actor fields.
+
+Side effects:
+- None.
+
+Audit/timeline:
+- None for reads.
+
+Cache:
+- Client-side cache is allowed briefly.
+- Refresh after any order status update.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `403 PERMISSION_DENIED`
+- `404 ORDER_NOT_FOUND`
+
+## `PATCH /shops/:shopId/orders/:orderId/status`
+
+Purpose:
+- Staff status move for the order pipeline.
+- Allowed moves: `new -> confirmed -> packed -> shipped -> delivered`, with `cancelled` before shipping and `returned` after shipping/delivery.
+
+Auth/permission:
+- Bearer token required.
+- Requires `orders:write` on `shopId`.
+
+Request:
+
+```json
+{
+  "status": "packed",
+  "reason": "Optional note; required for cancelled or returned"
+}
+```
+
+Response:
+- `200`
+- Same shape as staff order detail.
+
+Side effects:
+- Updates order status.
+- Writes `order_timeline`.
+- Writes `audit_events` action `order.status_updated`.
+- Restores inventory with `order_cancelled` or `order_returned` ledger rows when moving to `cancelled` or `returned`.
+
+Audit/timeline:
+- Timeline actor type: `staff`.
+- Audit metadata stores old status, new status, and reason.
+
+Cache:
+- Do not cache write response.
+- Invalidate dashboard order list/detail and storefront stock reads.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `400 REASON_REQUIRED`
+- `401 AUTH_REQUIRED`
+- `403 PERMISSION_DENIED`
+- `404 ORDER_NOT_FOUND`
+- `409 ORDER_STATUS_UNCHANGED`
+- `409 ORDER_STATUS_INVALID`

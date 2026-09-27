@@ -23,3 +23,21 @@ export const trackSchema = z.object({
   phone: z.string().trim().min(6).max(40)
 });
 
+export const orderParamsSchema = z.object({
+  shopId: z.string().uuid(),
+  orderId: z.string().uuid()
+});
+
+export const orderListParamsSchema = z.object({
+  shopId: z.string().uuid()
+});
+
+export const orderListQuerySchema = z.object({
+  status: z.enum(["new", "confirmed", "packed", "shipped", "delivered", "cancelled", "returned"]).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50)
+});
+
+export const updateStatusSchema = z.object({
+  status: z.enum(["confirmed", "packed", "shipped", "delivered", "cancelled", "returned"]),
+  reason: z.string().trim().min(3).max(500).optional()
+});

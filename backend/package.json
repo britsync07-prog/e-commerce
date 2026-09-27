@@ -15,6 +15,7 @@
     "test:catalog-db": "npm run build && node test/catalog-db-smoke.mjs",
     "test:permissions-db": "npm run build && node test/permissions-db-smoke.mjs",
     "test:orders-db": "npm run build && node test/orders-db-smoke.mjs",
+    "test:order-dashboard-db": "npm run build && node test/order-dashboard-db-smoke.mjs",
     "test:onboarding": "npm run build && node test/onboarding.integration.mjs"
   },
   "dependencies": {
