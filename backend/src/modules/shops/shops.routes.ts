@@ -250,6 +250,19 @@ export async function registerShopRoutes(app: FastifyInstance) {
       return reply.code(result.statusCode).send(result.body);
     }
   });
+  app.get("/:shopId/billing", async (request, reply) => {
+    try {
+      const params = parse(shopParamsSchema, request.params);
+      await requireShopPermission(request, params.shopId, "settings:read");
+      await db.query("insert into shop_billing (shop_id, plan_id) select $1, id from billing_plans where code = 'starter' on conflict (shop_id) do nothing", [params.shopId]);
+      const [billing, usage, invoices] = await Promise.all([
+        db.query("select sb.shop_id, sb.status, sb.current_period_start, sb.current_period_end, bp.code, bp.name, bp.monthly_price, bp.limits from shop_billing sb join billing_plans bp on bp.id = sb.plan_id where sb.shop_id = $1", [params.shopId]),
+        db.query("select (select count(*)::int from shop_staff where shop_id = $1 and status = 'active') as staff, (select count(*)::int from products where shop_id = $1 and status <> 'archived') as products, (select count(*)::int from orders where shop_id = $1 and created_at >= date_trunc('month', current_date)) as orders_this_month, (select coalesce(sum(byte_size), 0)::bigint from asset_objects where shop_id = $1) as storage_bytes", [params.shopId]),
+        db.query("select id, period_start, period_end, amount, currency, status, created_at from billing_invoices where shop_id = $1 order by created_at desc limit 24", [params.shopId])
+      ]);
+      return { billing: billing.rows[0], usage: usage.rows[0], invoices: invoices.rows };
+    } catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
+  });
 }
 
 async function getSettings(shopId: string) {

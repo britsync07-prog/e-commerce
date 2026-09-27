@@ -132,6 +132,24 @@ Errors:
 - `403 SHOP_ACCESS_DENIED`
 - `403 PERMISSION_DENIED`
 
+## `GET /:shopId/billing`
+
+Purpose: Read the shop's billing plan, current usage, and issued invoices.
+
+Auth/permission: Bearer token required; requires `settings:read`.
+
+Request: Path `shopId` UUID. No billing credentials or payment method are accepted by this endpoint.
+
+Response: `{ "billing": { "code": "starter", "status": "trialing", "limits": {} }, "usage": { "staff": 1, "products": 3, "orders_this_month": 4, "storage_bytes": 1200 }, "invoices": [] }`.
+
+Side effects: Creates a default Starter billing record only when a shop has no billing record. It does not charge money.
+
+Audit/timeline: None for read-only usage; billing provider mutations are not connected.
+
+Cache: Client may cache briefly; refetch after team, catalog, order, or asset changes.
+
+Errors: `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
+
 ## `POST /:shopId/team`
 
 Purpose:

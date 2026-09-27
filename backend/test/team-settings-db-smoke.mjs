@@ -99,6 +99,21 @@ try {
   assert.equal(settings.json().settings.display_name, "Updated Team Shop");
   assert.equal(Number(settings.json().settings.policy_defaults.deliveryCharge), 80);
 
+  const billing = await app.inject({ method: "GET", url: `/api/v1/shops/${shopId}/billing`, headers: { authorization: `Bearer ${ownerToken}` } });
+  assert.equal(billing.statusCode, 200, billing.body);
+  assert.equal(billing.json().billing.code, "starter");
+  assert.equal(Number(billing.json().usage.staff), 2);
+
+  const sessions = await app.inject({ method: "GET", url: "/api/v1/auth/sessions", headers: { authorization: `Bearer ${ownerToken}` } });
+  assert.equal(sessions.statusCode, 200, sessions.body);
+  assert.ok(sessions.json().sessions.length >= 1);
+  const staffSessions = await app.inject({ method: "GET", url: "/api/v1/auth/sessions", headers: { authorization: `Bearer ${staffToken}` } });
+  assert.equal(staffSessions.statusCode, 200, staffSessions.body);
+  const revoked = await app.inject({ method: "POST", url: `/api/v1/auth/sessions/${staffSessions.json().sessions[0].id}/revoke`, headers: { authorization: `Bearer ${staffToken}` } });
+  assert.equal(revoked.statusCode, 200, revoked.body);
+  const authEvents = await client.query("select count(*)::int as count from auth_events where user_id = $1 and event_type = 'login'", [ownerUserId]);
+  assert.ok(authEvents.rows[0].count >= 1);
+
   const selfRemove = await app.inject({
     method: "PATCH",
     url: `/api/v1/shops/${shopId}/team/${ownerUserId}`,

@@ -26,6 +26,7 @@ export async function registerUser(input: { name: string; email?: string; phone?
       `,
       [input.name, input.email?.toLowerCase() ?? null, input.phone ?? null, input.language, passwordHash]
     );
+    await db.query("insert into auth_events (user_id, event_type, metadata) values ($1, 'registered', $2)", [user.rows[0].id, JSON.stringify({ method: "password" })]);
     return { user: user.rows[0] };
   } catch (error) {
     if (isUniqueViolation(error)) throw new AuthError("User already exists.", 409, "USER_EXISTS");
@@ -62,6 +63,7 @@ export async function login(input: { identifier: string; password: string }, met
     [user.rows[0].id, hashToken(token), meta.userAgent ?? null, meta.ipAddress ?? null, expiresAt]
   );
 
+  await db.query("insert into auth_events (user_id, event_type, ip_address, user_agent, metadata) values ($1, 'login', $2, $3, $4)", [user.rows[0].id, meta.ipAddress ?? null, meta.userAgent ?? null, JSON.stringify({ sessionId: session.rows[0].id })]);
   return {
     token,
     session: session.rows[0],
@@ -95,8 +97,21 @@ export async function getSession(token: string | undefined) {
 
 export async function logout(token: string | undefined) {
   if (!token) throw new AuthError("Bearer token is required.", 401, "AUTH_REQUIRED");
-  await db.query("update user_sessions set revoked_at = now() where token_hash = $1 and revoked_at is null", [hashToken(token)]);
+  const session = await db.query("update user_sessions set revoked_at = now() where token_hash = $1 and revoked_at is null returning id, user_id", [hashToken(token)]);
+  if (session.rowCount) await db.query("insert into auth_events (user_id, event_type, metadata) values ($1, 'logout', $2)", [session.rows[0].user_id, JSON.stringify({ sessionId: session.rows[0].id })]);
   return { ok: true };
+}
+
+export async function listSessions(userId: string) {
+  const result = await db.query("select id, user_agent, ip_address, expires_at, revoked_at, created_at from user_sessions where user_id = $1 order by created_at desc", [userId]);
+  return { sessions: result.rows };
+}
+
+export async function revokeSession(userId: string, sessionId: string) {
+  const result = await db.query("update user_sessions set revoked_at = now() where id = $1 and user_id = $2 and revoked_at is null returning id", [sessionId, userId]);
+  if (!result.rowCount) throw new AuthError("Session not found or already revoked.", 404, "SESSION_NOT_FOUND");
+  await db.query("insert into auth_events (user_id, event_type, metadata) values ($1, 'session_revoked', $2)", [userId, JSON.stringify({ sessionId })]);
+  return { ok: true, sessionId };
 }
 
 export function bearerToken(header: unknown) {
@@ -138,4 +153,3 @@ function publicUser(row: Record<string, unknown>) {
 function isUniqueViolation(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
 }
-

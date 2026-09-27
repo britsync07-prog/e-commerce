@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { ZodError, type ZodTypeAny } from "zod";
-import { AuthError, bearerToken, getSession, login, logout, registerUser } from "./auth.service.js";
+import { z, ZodError, type ZodTypeAny } from "zod";
+import { AuthError, bearerToken, getSession, listSessions, login, logout, registerUser, revokeSession } from "./auth.service.js";
 import { loginSchema, registerSchema } from "./auth.validators.js";
 
 function parse<T extends ZodTypeAny>(schema: T, value: unknown) {
@@ -54,5 +54,12 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       return reply.code(result.statusCode).send(result.body);
     }
   });
+  app.get("/sessions", async (request, reply) => {
+    try { const session = await getSession(bearerToken(request.headers.authorization)); return listSessions(session.user.id as string); }
+    catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
+  });
+  app.post("/sessions/:sessionId/revoke", async (request, reply) => {
+    try { const session = await getSession(bearerToken(request.headers.authorization)); const params = parse(z.object({ sessionId: z.string().uuid() }), request.params); return revokeSession(session.user.id as string, params.sessionId); }
+    catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
+  });
 }
-

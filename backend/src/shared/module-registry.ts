@@ -126,6 +126,6 @@ export const backendModules: BackendModule[] = [
   { key: "meta", name: "Meta connections", status: "active", owns: ["Meta connection metadata", "credential references"], apiBase: "/api/v1/meta", apiDoc: "meta.md", phase: "p1" },
   { key: "webhooks", name: "Webhooks", status: "active", owns: ["signed Meta event ingestion", "webhook idempotency"], apiBase: "/api/v1/webhooks", apiDoc: "webhooks.md", phase: "foundation" },
   { key: "ai", name: "AI command center", status: "active", owns: ["command records", "risk classification", "source citations", "action approvals"], apiBase: "/api/v1/ai", apiDoc: "ai.md", phase: "p1" },
-  { key: "settings", name: "Settings", status: "planned", owns: ["policies", "security", "external connections"], phase: "foundation" },
+  { key: "settings", name: "Settings, billing, and security", status: "active", owns: ["policies", "security", "billing usage", "sessions", "external connections"], apiBase: "/api/v1/shops", apiDoc: "shops.md", phase: "foundation" },
   { key: "jobs", name: "Workers and jobs", status: "planned", owns: ["queues", "retries", "dead letters"], phase: "foundation" }
 ];

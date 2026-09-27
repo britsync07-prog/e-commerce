@@ -157,6 +157,41 @@ Audit/timeline:
 Cache:
 - Clear client session state.
 
+## `GET /sessions`
+
+Purpose: List the authenticated user's login sessions for security review.
+
+Auth: Bearer session required.
+
+Request: No body.
+
+Response: `{ "sessions": [{ "id": "uuid", "user_agent": "...", "ip_address": "...", "revoked_at": null }] }`.
+
+Side effects: None.
+
+Audit/timeline: Login and logout events are stored in `auth_events`; this read does not write an event.
+
+Cache: Do not cache longer than the current screen session.
+
+Errors: `AUTH_REQUIRED`, `SESSION_INVALID`.
+
+## `POST /sessions/:sessionId/revoke`
+
+Purpose: Revoke one of the authenticated user's sessions.
+
+Auth: Bearer session required. A user can revoke only their own session records.
+
+Request: Path `sessionId` UUID.
+
+Response: `{ "ok": true, "sessionId": "uuid" }`.
+
+Side effects: Sets `revoked_at`; the session can no longer authenticate.
+
+Audit/timeline: Stores an `auth_events.session_revoked` event.
+
+Cache: Invalidate local session state after revoking the current session.
+
+Errors: `AUTH_REQUIRED`, `SESSION_INVALID`, `SESSION_NOT_FOUND`, `VALIDATION_ERROR`.
+
 Errors:
 - `401 AUTH_REQUIRED`
-
