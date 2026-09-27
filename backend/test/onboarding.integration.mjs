@@ -170,7 +170,7 @@ async function testSystemModules() {
   });
 
   assert.equal(response.statusCode, 200);
-  assert.ok(response.json().modules.some((module) => module.key === "orders" && module.status === "planned"));
+  assert.ok(response.json().modules.some((module) => module.key === "orders" && module.status === "active"));
   assert.ok(response.json().modules.some((module) => module.key === "onboarding" && module.status === "active"));
 
   await app.close();

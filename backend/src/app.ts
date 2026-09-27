@@ -13,6 +13,7 @@ import { registerCatalogRoutes } from "./modules/catalog/catalog.routes.js";
 import { registerHealthRoutes } from "./modules/health/health.routes.js";
 import { registerInventoryRoutes } from "./modules/inventory/inventory.routes.js";
 import { registerOnboardingRoutes } from "./modules/onboarding/onboarding.routes.js";
+import { registerOrderRoutes } from "./modules/orders/orders.routes.js";
 import { registerShopRoutes } from "./modules/shops/shops.routes.js";
 import { registerStorefrontRoutes } from "./modules/storefront/storefront.routes.js";
 import { registerSystemRoutes } from "./modules/system/system.routes.js";
@@ -57,6 +58,7 @@ export async function buildApp() {
   await app.register(registerShopRoutes, { prefix: "/api/v1/shops" });
   await app.register(registerSystemRoutes, { prefix: "/api/v1/system" });
   await app.register(registerOnboardingRoutes, { prefix: "/api/v1/onboarding" });
+  await app.register(registerOrderRoutes, { prefix: "/api/v1/orders" });
   await app.register(registerStorefrontRoutes, { prefix: "/api/v1/storefront" });
 
   return app;
