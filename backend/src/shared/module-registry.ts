@@ -120,7 +120,7 @@ export const backendModules: BackendModule[] = [
     phase: "p0"
   },
   { key: "payments", name: "Payments", status: "active", owns: ["COD ledger", "proofs", "reconciliation"], apiBase: "/api/v1/payments", apiDoc: "payments.md", phase: "p1" },
-  { key: "customers", name: "Customers", status: "planned", owns: ["profiles", "addresses", "tags", "consent"], phase: "p2" },
+  { key: "customers", name: "Customers", status: "active", owns: ["profiles", "addresses", "tags", "consent", "timeline"], apiBase: "/api/v1/customers", apiDoc: "customers.md", phase: "p2" },
   { key: "marketing", name: "Marketing", status: "planned", owns: ["coupons", "campaigns", "broadcast safety"], phase: "p3" },
   { key: "analytics", name: "Analytics", status: "active", owns: ["dashboard metrics", "reports"], apiBase: "/api/v1/analytics", apiDoc: "analytics.md", phase: "p2" },
   { key: "ai", name: "AI automation", status: "planned", owns: ["drafts", "extraction", "action approvals"], phase: "p0" },
