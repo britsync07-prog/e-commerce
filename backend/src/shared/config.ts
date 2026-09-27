@@ -13,7 +13,9 @@ const schema = z.object({
   APP_ORIGIN: z.string().default("http://localhost:3000"),
   STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
   LOCAL_STORAGE_DIR: z.string().default("./storage"),
-  PUBLIC_ASSET_BASE_URL: z.string().default("")
+  PUBLIC_ASSET_BASE_URL: z.string().default(""),
+  META_WEBHOOK_SECRET: z.string().min(16).optional(),
+  META_WEBHOOK_VERIFY_TOKEN: z.string().min(8).optional()
 });
 
 const env = schema.parse(process.env);
@@ -28,5 +30,7 @@ export const config = {
   appOrigin: env.APP_ORIGIN,
   storageDriver: env.STORAGE_DRIVER,
   localStorageDir: env.LOCAL_STORAGE_DIR,
-  publicAssetBaseUrl: env.PUBLIC_ASSET_BASE_URL
+  publicAssetBaseUrl: env.PUBLIC_ASSET_BASE_URL,
+  metaWebhookSecret: env.META_WEBHOOK_SECRET,
+  metaWebhookVerifyToken: env.META_WEBHOOK_VERIFY_TOKEN
 };

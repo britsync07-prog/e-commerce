@@ -123,8 +123,9 @@ export const backendModules: BackendModule[] = [
   { key: "customers", name: "Customers", status: "active", owns: ["profiles", "addresses", "tags", "consent", "timeline"], apiBase: "/api/v1/customers", apiDoc: "customers.md", phase: "p2" },
   { key: "marketing", name: "Marketing", status: "active", owns: ["coupons", "saved segments", "broadcast safety"], apiBase: "/api/v1/marketing", apiDoc: "marketing.md", phase: "p2" },
   { key: "analytics", name: "Analytics", status: "active", owns: ["dashboard metrics", "reports"], apiBase: "/api/v1/analytics", apiDoc: "analytics.md", phase: "p2" },
+  { key: "meta", name: "Meta connections", status: "active", owns: ["Meta connection metadata", "credential references"], apiBase: "/api/v1/meta", apiDoc: "meta.md", phase: "p1" },
+  { key: "webhooks", name: "Webhooks", status: "active", owns: ["signed Meta event ingestion", "webhook idempotency"], apiBase: "/api/v1/webhooks", apiDoc: "webhooks.md", phase: "foundation" },
   { key: "ai", name: "AI automation", status: "planned", owns: ["drafts", "extraction", "action approvals"], phase: "p0" },
   { key: "settings", name: "Settings", status: "planned", owns: ["policies", "security", "external connections"], phase: "foundation" },
-  { key: "webhooks", name: "Webhooks", status: "planned", owns: ["Meta", "courier", "payment provider events"], phase: "foundation" },
   { key: "jobs", name: "Workers and jobs", status: "planned", owns: ["queues", "retries", "dead letters"], phase: "foundation" }
 ];
