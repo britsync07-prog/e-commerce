@@ -8,8 +8,8 @@ Purpose:
 - Uses local disk in dev/current VPS and keeps object-storage shape for S3/R2 later.
 
 Auth:
-- Temporary public route during live-test setup.
-- Production rule: owner/staff session required, with shop upload permission.
+- Image upload requires bearer session and `assets:write`.
+- Public image reads do not require auth.
 
 ## `POST /:shopId/images`
 
@@ -50,6 +50,10 @@ Errors:
 - `400 VALIDATION_ERROR`
 - `400 FILE_REQUIRED`
 - `400 UNSUPPORTED_IMAGE_TYPE`
+- `401 AUTH_REQUIRED`
+- `401 SESSION_INVALID`
+- `403 SHOP_ACCESS_DENIED`
+- `403 PERMISSION_DENIED`
 - `413 IMAGE_TOO_LARGE`
 - `500` for storage or database failure.
 
@@ -75,4 +79,3 @@ Cache:
 Errors:
 - `400 INVALID_PATH`
 - `404 ASSET_NOT_FOUND`
-

@@ -8,8 +8,9 @@ Purpose:
 - Keeps product data tenant-scoped by `shop_id`.
 
 Auth:
-- Temporary public route during backend setup.
-- Production rule: owner/staff session with product permission.
+- Bearer session required.
+- `catalog:read` for reads.
+- `catalog:write` for create/update.
 
 ## `POST /shops/:shopId/products`
 
@@ -71,6 +72,10 @@ Cache:
 
 Errors:
 - `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `401 SESSION_INVALID`
+- `403 SHOP_ACCESS_DENIED`
+- `403 PERMISSION_DENIED`
 - `400 SLUG_REQUIRED`
 - `404 SHOP_NOT_FOUND`
 - `409 PRODUCT_CONFLICT`
@@ -112,6 +117,10 @@ Cache:
 - Refetch after product or inventory mutation.
 
 Errors:
+- `401 AUTH_REQUIRED`
+- `401 SESSION_INVALID`
+- `403 SHOP_ACCESS_DENIED`
+- `403 PERMISSION_DENIED`
 - `404 SHOP_NOT_FOUND`
 
 ## `GET /shops/:shopId/products/:productId`
@@ -150,5 +159,8 @@ Cache:
 - Refetch after product or inventory mutation.
 
 Errors:
+- `401 AUTH_REQUIRED`
+- `401 SESSION_INVALID`
+- `403 SHOP_ACCESS_DENIED`
+- `403 PERMISSION_DENIED`
 - `404 PRODUCT_NOT_FOUND`
-

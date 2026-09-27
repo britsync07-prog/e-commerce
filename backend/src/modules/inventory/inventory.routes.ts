@@ -1,5 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { ZodError, type ZodTypeAny } from "zod";
+import { PermissionError, requireShopPermission } from "../../shared/permissions.js";
+import { AuthError } from "../auth/auth.service.js";
 import { adjustStock, getStock, InventoryError } from "./inventory.service.js";
 import { adjustInventorySchema, variantParamsSchema } from "./inventory.validators.js";
 
@@ -9,6 +11,7 @@ function parse<T extends ZodTypeAny>(schema: T, value: unknown) {
 
 function handleError(error: unknown) {
   if (error instanceof InventoryError) return { statusCode: error.statusCode, body: { code: error.code, message: error.message } };
+  if (error instanceof PermissionError || error instanceof AuthError) return { statusCode: error.statusCode, body: { code: error.code, message: error.message } };
   if (error instanceof ZodError) return { statusCode: 400, body: { code: "VALIDATION_ERROR", message: "Request validation failed.", issues: error.issues } };
   throw error;
 }
@@ -17,6 +20,7 @@ export async function registerInventoryRoutes(app: FastifyInstance) {
   app.get("/shops/:shopId/variants/:variantId/stock", async (request, reply) => {
     try {
       const params = parse(variantParamsSchema, request.params);
+      await requireShopPermission(request, params.shopId, "inventory:read");
       return getStock(params.shopId, params.variantId);
     } catch (error) {
       const result = handleError(error);
@@ -27,6 +31,7 @@ export async function registerInventoryRoutes(app: FastifyInstance) {
   app.post("/shops/:shopId/variants/:variantId/adjustments", async (request, reply) => {
     try {
       const params = parse(variantParamsSchema, request.params);
+      await requireShopPermission(request, params.shopId, "inventory:write");
       const body = parse(adjustInventorySchema, request.body);
       return reply.code(201).send(await adjustStock(params.shopId, params.variantId, body));
     } catch (error) {
@@ -35,4 +40,3 @@ export async function registerInventoryRoutes(app: FastifyInstance) {
     }
   });
 }
-

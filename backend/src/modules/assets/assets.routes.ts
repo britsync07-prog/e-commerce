@@ -4,6 +4,8 @@ import { stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { ZodError, z } from "zod";
 import { config } from "../../shared/config.js";
+import { PermissionError, requireShopPermission } from "../../shared/permissions.js";
+import { AuthError } from "../auth/auth.service.js";
 import { AssetError, saveShopImage } from "./assets.service.js";
 
 const paramsSchema = z.object({
@@ -14,11 +16,13 @@ export async function registerAssetRoutes(app: FastifyInstance) {
   app.post("/:shopId/images", async (request, reply) => {
     try {
       const params = paramsSchema.parse(request.params);
+      await requireShopPermission(request, params.shopId, "assets:write");
       const file = await request.file();
       if (!file) return reply.code(400).send({ code: "FILE_REQUIRED", message: "Multipart file is required." });
       return reply.code(201).send(await saveShopImage(params.shopId, file));
     } catch (error) {
       if (error instanceof AssetError) return reply.code(error.statusCode).send({ code: error.code, message: error.message });
+      if (error instanceof PermissionError || error instanceof AuthError) return reply.code(error.statusCode).send({ code: error.code, message: error.message });
       if (error instanceof ZodError) return reply.code(400).send({ code: "VALIDATION_ERROR", message: "Request validation failed.", issues: error.issues });
       throw error;
     }
@@ -38,4 +42,3 @@ export async function registerAssetRoutes(app: FastifyInstance) {
     }
   });
 }
-

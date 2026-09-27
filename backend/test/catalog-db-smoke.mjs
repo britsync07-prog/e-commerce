@@ -11,19 +11,57 @@ const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
 await client.connect();
 
 try {
+  const stamp = Date.now();
+  const user = await client.query(
+    "insert into users (name, email, language) values ($1, $2, 'en') returning id",
+    ["Catalog Smoke", `catalog-smoke-${stamp}@example.com`]
+  );
   const shop = await client.query(
     `
       insert into shops (display_name, subdomain, category, country, currency)
       values ($1, $2, $3, $4, $5)
       returning id
     `,
-    [`Smoke ${Date.now()}`, `smoke-${Date.now()}`, "test", "Bangladesh", "BDT"]
+    [`Smoke ${stamp}`, `smoke-${stamp}`, "test", "Bangladesh", "BDT"]
   );
+  await client.query("insert into shop_staff (shop_id, user_id, role) values ($1, $2, 'owner')", [shop.rows[0].id, user.rows[0].id]);
 
   const app = await buildApp();
+  const login = await app.inject({
+    method: "POST",
+    url: "/api/v1/auth/login",
+    payload: {
+      identifier: `catalog-smoke-${stamp}@example.com`,
+      password: "not-used"
+    }
+  });
+  assert.equal(login.statusCode, 401);
+  const tokenUser = await app.inject({
+    method: "POST",
+    url: "/api/v1/auth/register",
+    payload: {
+      name: "Catalog Token",
+      email: `catalog-token-${stamp}@example.com`,
+      password: "strong-password-123",
+      language: "en"
+    }
+  });
+  assert.equal(tokenUser.statusCode, 201, tokenUser.body);
+  const tokenLogin = await app.inject({
+    method: "POST",
+    url: "/api/v1/auth/login",
+    payload: {
+      identifier: `catalog-token-${stamp}@example.com`,
+      password: "strong-password-123"
+    }
+  });
+  const token = tokenLogin.json().token;
+  await client.query("insert into shop_staff (shop_id, user_id, role) values ($1, $2, 'owner')", [shop.rows[0].id, tokenUser.json().user.id]);
+
   const created = await app.inject({
     method: "POST",
     url: `/api/v1/catalog/shops/${shop.rows[0].id}/products`,
+    headers: { authorization: `Bearer ${token}` },
     payload: {
       name: "Smoke Product",
       status: "active",
@@ -38,7 +76,8 @@ try {
 
   const stock = await app.inject({
     method: "GET",
-    url: `/api/v1/inventory/shops/${shop.rows[0].id}/variants/${variantId}/stock`
+    url: `/api/v1/inventory/shops/${shop.rows[0].id}/variants/${variantId}/stock`,
+    headers: { authorization: `Bearer ${token}` }
   });
   assert.equal(stock.statusCode, 200, stock.body);
   assert.equal(stock.json().quantity, 3);
@@ -46,6 +85,7 @@ try {
   const adjusted = await app.inject({
     method: "POST",
     url: `/api/v1/inventory/shops/${shop.rows[0].id}/variants/${variantId}/adjustments`,
+    headers: { authorization: `Bearer ${token}` },
     payload: { deltaQuantity: 2, reason: "restock" }
   });
   assert.equal(adjusted.statusCode, 201, adjusted.body);
@@ -56,4 +96,3 @@ try {
 } finally {
   await client.end();
 }
-

@@ -8,8 +8,9 @@ Purpose:
 - Prevents stock from going below zero.
 
 Auth:
-- Temporary public route during backend setup.
-- Production rule: owner/staff session with inventory permission.
+- Bearer session required.
+- `inventory:read` for stock reads.
+- `inventory:write` for stock adjustments.
 
 ## `GET /shops/:shopId/variants/:variantId/stock`
 
@@ -39,6 +40,10 @@ Cache:
 - Dashboard can cache briefly and refetch after stock mutation.
 
 Errors:
+- `401 AUTH_REQUIRED`
+- `401 SESSION_INVALID`
+- `403 SHOP_ACCESS_DENIED`
+- `403 PERMISSION_DENIED`
 - `404 VARIANT_NOT_FOUND`
 
 ## `POST /shops/:shopId/variants/:variantId/adjustments`
@@ -88,6 +93,9 @@ Cache:
 
 Errors:
 - `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `401 SESSION_INVALID`
+- `403 SHOP_ACCESS_DENIED`
+- `403 PERMISSION_DENIED`
 - `404 VARIANT_NOT_FOUND`
 - `409 INSUFFICIENT_STOCK`
-

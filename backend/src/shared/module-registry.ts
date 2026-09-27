@@ -65,7 +65,15 @@ export const backendModules: BackendModule[] = [
     apiDoc: "auth.md",
     phase: "foundation"
   },
-  { key: "shops", name: "Shops and staff", status: "planned", owns: ["shop settings", "roles", "permissions"], phase: "foundation" },
+  {
+    key: "shops",
+    name: "Shops and staff",
+    status: "active",
+    owns: ["shop settings", "roles", "permissions"],
+    apiBase: "/api/v1/shops",
+    apiDoc: "shops.md",
+    phase: "foundation"
+  },
   {
     key: "catalog",
     name: "Catalog",
