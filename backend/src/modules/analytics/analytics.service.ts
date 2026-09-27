@@ -66,6 +66,24 @@ export async function getDashboardMetrics(shopId: string, input: { from: string;
   };
 }
 
+export async function getOrderReport(shopId: string, input: { from: string; to: string; status?: string; format: "json" | "csv"; limit: number }) {
+  const values: unknown[] = [shopId, input.from, input.to];
+  const statusFilter = input.status ? ` and status = $${values.push(input.status)}` : "";
+  const result = await db.query(`select id, status, source, total, currency, attribution_source, attribution_campaign_id, created_at from orders where shop_id = $1 and created_at >= $2::date and created_at < ($3::date + interval '1 day')${statusFilter} order by created_at desc limit ${input.limit}`, values);
+  const totals = { count: result.rowCount ?? 0, revenue: result.rows.reduce((sum, row) => sum + Number(row.total), 0) };
+  if (input.format === "csv") return { csv: ["id,status,source,total,currency,attribution_source,attribution_campaign_id,created_at", ...result.rows.map((row) => [row.id, row.status, row.source, row.total, row.currency, row.attribution_source, row.attribution_campaign_id ?? "", row.created_at.toISOString()].map(csv).join(",")), ""].join("\n"), totals, filters: input };
+  return { filters: input, totals, orders: result.rows };
+}
+
+export async function listAnalyticsEvents(shopId: string, input: { from: string; to: string; eventType?: string; limit: number }) {
+  const values: unknown[] = [shopId, input.from, input.to];
+  const typeFilter = input.eventType ? ` and event_type = $${values.push(input.eventType)}` : "";
+  const result = await db.query(`select id, event_type, entity_type, entity_id, source, payload, occurred_at from analytics_events where shop_id = $1 and occurred_at >= $2::date and occurred_at < ($3::date + interval '1 day')${typeFilter} order by occurred_at desc limit ${input.limit}`, values);
+  return { filters: input, events: result.rows };
+}
+
+function csv(value: unknown) { const text = String(value ?? ""); return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text; }
+
 function byStatus(rows: { status: string; count: number }[]) {
   return Object.fromEntries(rows.map((row) => [row.status, Number(row.count)])) as Record<string, number>;
 }

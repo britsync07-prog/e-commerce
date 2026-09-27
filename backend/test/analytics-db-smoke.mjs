@@ -32,5 +32,14 @@ try {
   assert.equal(Number(metrics.json().sales.grossRevenue), 500);
   assert.equal(metrics.json().delivery.failedDeliveries.total, 0);
   assert.equal(metrics.json().ai.drafts.total, 0);
+  const report = await app.inject({ method: "GET", url: `/api/v1/analytics/shops/${shopId}/reports/orders?from=2026-01-01&to=2026-12-31&status=confirmed`, headers: { authorization: `Bearer ${token}` } });
+  assert.equal(report.statusCode, 200, report.body);
+  assert.equal(report.json().totals.count, 1);
+  const csv = await app.inject({ method: "GET", url: `/api/v1/analytics/shops/${shopId}/reports/orders?from=2026-01-01&to=2026-12-31&format=csv`, headers: { authorization: `Bearer ${token}` } });
+  assert.equal(csv.statusCode, 200, csv.body);
+  assert.match(csv.body, /id,status,source,total/);
+  const events = await app.inject({ method: "GET", url: `/api/v1/analytics/shops/${shopId}/events?from=2026-01-01&to=2026-12-31`, headers: { authorization: `Bearer ${token}` } });
+  assert.equal(events.statusCode, 200, events.body);
+  assert.ok(events.json().events.some((event) => event.entity_type === "orders"));
   console.log("Analytics DB smoke passed.");
 } finally { await client.end(); await app.close(); }
