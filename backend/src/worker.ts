@@ -1,4 +1,5 @@
 import { completeJob, claimNextJob, failJob } from "./modules/jobs/jobs.service.js";
+import { fileURLToPath } from "node:url";
 
 const workerId = process.env.WORKER_ID ?? `worker-${process.pid}`;
 const pollMs = Number(process.env.WORKER_POLL_MS ?? 2000);
@@ -28,7 +29,9 @@ async function handle(queue: string, jobType: string, payload: unknown) {
   throw new Error(`Unsupported job type: ${queue}.${jobType}`);
 }
 
-while (!stopping) {
-  try { await runOnce(); } catch (error) { console.error("worker loop failed", error); }
-  if (!stopping) await new Promise((resolve) => setTimeout(resolve, pollMs));
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  while (!stopping) {
+    try { await runOnce(); } catch (error) { console.error("worker loop failed", error); }
+    if (!stopping) await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
 }
