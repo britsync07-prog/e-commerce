@@ -8,6 +8,7 @@ import multipart from "@fastify/multipart";
 import { config } from "./shared/config.js";
 import { requestContextHook } from "./shared/request-context.js";
 import { registerAssetRoutes } from "./modules/assets/assets.routes.js";
+import { registerAuthRoutes } from "./modules/auth/auth.routes.js";
 import { registerCatalogRoutes } from "./modules/catalog/catalog.routes.js";
 import { registerHealthRoutes } from "./modules/health/health.routes.js";
 import { registerInventoryRoutes } from "./modules/inventory/inventory.routes.js";
@@ -48,6 +49,7 @@ export async function buildApp() {
   await app.register(swaggerUi, { routePrefix: "/docs" });
 
   await app.register(registerAssetRoutes, { prefix: "/api/v1/assets" });
+  await app.register(registerAuthRoutes, { prefix: "/api/v1/auth" });
   await app.register(registerCatalogRoutes, { prefix: "/api/v1/catalog" });
   await app.register(registerHealthRoutes, { prefix: "/api/v1/health" });
   await app.register(registerInventoryRoutes, { prefix: "/api/v1/inventory" });

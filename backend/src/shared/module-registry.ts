@@ -56,7 +56,15 @@ export const backendModules: BackendModule[] = [
     apiDoc: "storefront.md",
     phase: "p0"
   },
-  { key: "auth", name: "Auth and sessions", status: "planned", owns: ["users", "sessions", "invitations"], phase: "foundation" },
+  {
+    key: "auth",
+    name: "Auth and sessions",
+    status: "active",
+    owns: ["users", "password login", "sessions"],
+    apiBase: "/api/v1/auth",
+    apiDoc: "auth.md",
+    phase: "foundation"
+  },
   { key: "shops", name: "Shops and staff", status: "planned", owns: ["shop settings", "roles", "permissions"], phase: "foundation" },
   {
     key: "catalog",

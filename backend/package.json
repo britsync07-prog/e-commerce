@@ -11,6 +11,7 @@
     "check": "npm run check:api-docs && npm run build && npm test",
     "check:api-docs": "node scripts/check-api-docs.mjs",
     "test": "npm run build && node test/onboarding.integration.mjs",
+    "test:auth-db": "npm run build && node test/auth-db-smoke.mjs",
     "test:catalog-db": "npm run build && node test/catalog-db-smoke.mjs",
     "test:onboarding": "npm run build && node test/onboarding.integration.mjs"
   },
