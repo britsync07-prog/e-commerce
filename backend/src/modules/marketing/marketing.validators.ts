@@ -31,3 +31,10 @@ export const createBroadcastSchema = z.object({
   rateLimitPerMinute: z.coerce.number().int().min(1).max(100).default(20)
 });
 export const approvalSchema = z.object({ reason: z.string().trim().min(5).max(500) });
+export const reportQuerySchema = z.object({ from: z.string().date().optional(), to: z.string().date().optional() }).transform((input, ctx) => {
+  const to = input.to ?? new Date().toISOString().slice(0, 10);
+  const from = input.from ?? new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10);
+  if (from > to) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["from"], message: "from must be on or before to" });
+  if ((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000 > 366) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["to"], message: "Date range cannot exceed 367 days." });
+  return { from, to };
+});

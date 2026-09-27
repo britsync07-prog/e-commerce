@@ -104,6 +104,36 @@ export async function approveBroadcast(shopId: string, broadcastId: string, reas
   return previewBroadcast(shopId, broadcastId);
 }
 
+export async function getRetentionReport(shopId: string, input: { from: string; to: string }) {
+  const range = [shopId, input.from, input.to];
+  const [customers, coupons, broadcasts] = await Promise.all([
+    db.query(
+      `select count(*) filter (where c.status = 'active')::int as active,
+        count(*) filter (where c.created_at >= $2::date and c.created_at < ($3::date + interval '1 day'))::int as new,
+        count(*) filter (where c.consent_status = 'opted_out')::int as opted_out,
+        count(*) filter (where c.status = 'active' and (select count(*) from orders o where o.shop_id = c.shop_id and o.customer_id = c.id) >= 2)::int as repeat
+       from customers c where c.shop_id = $1`, range
+    ),
+    db.query(
+      `select count(*)::int as redemptions, coalesce(sum(amount), 0)::numeric as discount_value
+       from coupon_redemptions where shop_id = $1 and created_at >= $2::date and created_at < ($3::date + interval '1 day')`, range
+    ),
+    db.query(
+      `select count(*)::int as total,
+        count(*) filter (where status = 'draft')::int as drafts,
+        count(*) filter (where status = 'approved')::int as approved,
+        coalesce(sum(audience_count) filter (where status = 'approved'), 0)::int as approved_audience
+       from broadcasts where shop_id = $1 and created_at >= $2::date and created_at < ($3::date + interval '1 day')`, range
+    )
+  ]);
+  return {
+    period: { from: input.from, to: input.to },
+    retention: customers.rows[0],
+    coupons: coupons.rows[0],
+    campaigns: { ...broadcasts.rows[0], sent_messages: 0, delivery_status: "not_connected" }
+  };
+}
+
 async function audit(shopId: string, actorId: string, action: string, targetType: string, targetId: string, metadata: unknown) {
   await db.query("insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'staff', $2, $3, $4, $5, $6)", [shopId, actorId, action, targetType, targetId, JSON.stringify(metadata)]);
 }

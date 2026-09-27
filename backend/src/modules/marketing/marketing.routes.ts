@@ -2,8 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { ZodError, type ZodTypeAny } from "zod";
 import { AuthError } from "../auth/auth.service.js";
 import { PermissionError, requireShopPermission } from "../../shared/permissions.js";
-import { approveBroadcast, createBroadcast, createCoupon, createSegment, listBroadcasts, listCoupons, listSegments, MarketingError, previewBroadcast, previewSegment, updateCoupon } from "./marketing.service.js";
-import { approvalSchema, broadcastParamsSchema, couponListQuerySchema, couponParamsSchema, createBroadcastSchema, createCouponSchema, createSegmentSchema, segmentParamsSchema, shopParamsSchema, updateCouponSchema } from "./marketing.validators.js";
+import { approveBroadcast, createBroadcast, createCoupon, createSegment, getRetentionReport, listBroadcasts, listCoupons, listSegments, MarketingError, previewBroadcast, previewSegment, updateCoupon } from "./marketing.service.js";
+import { approvalSchema, broadcastParamsSchema, couponListQuerySchema, couponParamsSchema, createBroadcastSchema, createCouponSchema, createSegmentSchema, reportQuerySchema, segmentParamsSchema, shopParamsSchema, updateCouponSchema } from "./marketing.validators.js";
 
 function parse<T extends ZodTypeAny>(schema: T, value: unknown) { return schema.parse(value) as T["_output"]; }
 function handleError(error: unknown) {
@@ -13,6 +13,10 @@ function handleError(error: unknown) {
 }
 
 export async function registerMarketingRoutes(app: FastifyInstance) {
+  app.get("/shops/:shopId/reports/retention", async (request, reply) => {
+    try { const params = parse(shopParamsSchema, request.params); const query = parse(reportQuerySchema, request.query); await requireShopPermission(request, params.shopId, "marketing:read"); return getRetentionReport(params.shopId, query); }
+    catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
+  });
   app.get("/shops/:shopId/broadcasts", async (request, reply) => {
     try { const params = parse(shopParamsSchema, request.params); await requireShopPermission(request, params.shopId, "marketing:read"); return listBroadcasts(params.shopId); }
     catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }

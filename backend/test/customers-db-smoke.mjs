@@ -76,5 +76,11 @@ try {
   const sourceState = await client.query("select status, merged_into_customer_id from customers where shop_id = $1 and id = $2", [shopId, duplicateId]);
   assert.equal(sourceState.rows[0].status, "merged");
   assert.equal(sourceState.rows[0].merged_into_customer_id, customerId);
+  const report = await app.inject({ method: "GET", url: `/api/v1/marketing/shops/${shopId}/reports/retention?from=2026-01-01&to=2026-12-31`, headers: { authorization: `Bearer ${token}` } });
+  assert.equal(report.statusCode, 200, report.body);
+  assert.equal(report.json().retention.active, 1);
+  assert.equal(report.json().coupons.redemptions, 1);
+  assert.equal(report.json().campaigns.approved, 1);
+  assert.equal(report.json().campaigns.sent_messages, 0);
   console.log("Customers DB smoke passed.");
 } finally { await client.end(); await app.close(); }

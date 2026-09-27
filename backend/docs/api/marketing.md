@@ -163,3 +163,21 @@ Audit/timeline: Writes `broadcast.approved` audit with audience count and rate l
 Cache: No cache. A future sender must recheck consent and use the stored rate limit immediately before sending.
 
 Errors: `BROADCAST_NOT_FOUND`, `BROADCAST_NOT_DRAFT`, `BROADCAST_EMPTY_AUDIENCE`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
+
+## `GET /shops/:shopId/reports/retention`
+
+Purpose: Report customer retention, coupon use, and broadcast lifecycle for a selected period.
+
+Auth: Requires `marketing:read`.
+
+Request: Path `shopId` UUID. Optional `from` and `to` dates (`YYYY-MM-DD`), defaulting to the last 30 days; maximum 367 days.
+
+Response: `{ "period": { "from": "...", "to": "..." }, "retention": { "active": 1, "new": 1, "repeat": 0, "opted_out": 0 }, "coupons": { "redemptions": 1, "discount_value": "50.00" }, "campaigns": { "total": 1, "drafts": 0, "approved": 1, "approved_audience": 1, "sent_messages": 0, "delivery_status": "not_connected" } }`.
+
+Side effects: None. Metrics are derived from current customer, order, coupon, and broadcast records; empty periods return zeroes.
+
+Audit/timeline: None for read-only reporting.
+
+Cache: Client may cache reports briefly. Refetch after customer consent, checkout, coupon, or broadcast mutations.
+
+Errors: `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
