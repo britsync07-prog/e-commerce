@@ -15,6 +15,7 @@ export const checkoutSchema = z.object({
       quantity: z.coerce.number().int().min(1).max(100)
     })
   ).min(1).max(50),
+  couponCode: z.string().trim().min(2).max(40).optional(),
   paymentMethod: z.enum(["cod"]).default("cod")
 });
 

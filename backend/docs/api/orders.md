@@ -33,7 +33,8 @@ Request:
       "quantity": 1
     }
   ],
-  "paymentMethod": "cod"
+  "paymentMethod": "cod",
+  "couponCode": "WELCOME10"
 }
 ```
 

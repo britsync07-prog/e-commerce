@@ -27,6 +27,7 @@ export async function submitCheckout(input: {
   subdomain: string;
   customer: { name: string; phone: string; address: string; city?: string; area?: string };
   items: { variantId: string; quantity: number }[];
+  couponCode?: string;
   paymentMethod: "cod";
 }) {
   const client = await db.connect();
@@ -76,13 +77,26 @@ export async function submitCheckout(input: {
       preparedItems.push({ ...variant.rows[0], quantity: item.quantity, unitPrice, lineTotal });
     }
 
+    let discountAmount = 0;
+    let couponId: string | null = null;
+    if (input.couponCode) {
+      const coupon = await client.query("select id, discount_type, discount_value, min_order_total, usage_limit, usage_count, expires_at from coupons where shop_id = $1 and code = $2 and status = 'active' for update", [shopId, input.couponCode.toUpperCase()]);
+      if (!coupon.rowCount) throw new OrderError("Coupon is invalid or disabled.", 400, "COUPON_INVALID");
+      const row = coupon.rows[0];
+      if (row.expires_at && new Date(row.expires_at).getTime() <= Date.now()) throw new OrderError("Coupon has expired.", 400, "COUPON_EXPIRED");
+      if (row.usage_limit !== null && Number(row.usage_count) >= Number(row.usage_limit)) throw new OrderError("Coupon usage limit reached.", 409, "COUPON_USAGE_LIMIT");
+      if (subtotal < Number(row.min_order_total)) throw new OrderError("Order does not meet the coupon minimum.", 400, "COUPON_MINIMUM_NOT_MET");
+      discountAmount = row.discount_type === "percent" ? subtotal * Number(row.discount_value) / 100 : Number(row.discount_value);
+      discountAmount = Math.min(subtotal, Math.max(0, Number(discountAmount.toFixed(2))));
+      couponId = row.id;
+    }
     const deliveryCharge = Number(policy.deliveryCharge ?? 0);
-    const total = subtotal + deliveryCharge;
+    const total = subtotal - discountAmount + deliveryCharge;
     const order = await client.query(
       `
-        insert into orders (shop_id, customer_id, source, status, payment_method, currency, subtotal, delivery_charge, total, buyer_snapshot)
-        values ($1, $2, 'storefront', 'confirmed', $3, $4, $5, $6, $7, $8)
-        returning id, shop_id, status, currency, subtotal, delivery_charge, total, created_at
+        insert into orders (shop_id, customer_id, source, status, payment_method, currency, subtotal, delivery_charge, discount_amount, total, coupon_id, buyer_snapshot)
+        values ($1, $2, 'storefront', 'confirmed', $3, $4, $5, $6, $7, $8, $9, $10)
+        returning id, shop_id, status, currency, subtotal, delivery_charge, discount_amount, total, coupon_id, created_at
       `,
       [
         shopId,
@@ -91,10 +105,17 @@ export async function submitCheckout(input: {
         currency,
         subtotal,
         deliveryCharge,
+        discountAmount,
         total,
+        couponId,
         { name: input.customer.name, phone: input.customer.phone, address: input.customer.address, city: input.customer.city, area: input.customer.area }
       ]
     );
+
+    if (couponId) {
+      await client.query("update coupons set usage_count = usage_count + 1, updated_at = now() where shop_id = $1 and id = $2", [shopId, couponId]);
+      await client.query("insert into coupon_redemptions (shop_id, coupon_id, order_id, customer_id, amount) values ($1, $2, $3, $4, $5)", [shopId, couponId, order.rows[0].id, customer.rows[0].id, discountAmount]);
+    }
 
     for (const item of preparedItems) {
       await client.query(

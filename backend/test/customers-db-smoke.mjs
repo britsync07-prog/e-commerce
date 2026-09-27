@@ -25,9 +25,12 @@ try {
   await app.inject({ method: "POST", url: `/api/v1/onboarding/${shopId}/channels/meta/skip` });
   await app.inject({ method: "PATCH", url: `/api/v1/onboarding/${shopId}/ai-mode`, payload: { aiMode: "suggest" } });
   await app.inject({ method: "POST", url: `/api/v1/onboarding/${shopId}/launch` });
+  const coupon = await app.inject({ method: "POST", url: `/api/v1/marketing/shops/${shopId}/coupons`, headers: { authorization: `Bearer ${token}` }, payload: { code: "WELCOME10", discountType: "percent", discountValue: 10, usageLimit: 1 } });
+  assert.equal(coupon.statusCode, 201, coupon.body);
   const variant = await client.query("select id from product_variants where shop_id = $1 limit 1", [shopId]);
-  const checkout = await app.inject({ method: "POST", url: "/api/v1/orders/checkout", payload: { subdomain, customer: { name: "Customer Buyer", phone, address: "House 1, Dhaka" }, items: [{ variantId: variant.rows[0].id, quantity: 1 }], paymentMethod: "cod" } });
+  const checkout = await app.inject({ method: "POST", url: "/api/v1/orders/checkout", payload: { subdomain, customer: { name: "Customer Buyer", phone, address: "House 1, Dhaka" }, items: [{ variantId: variant.rows[0].id, quantity: 1 }], couponCode: "WELCOME10", paymentMethod: "cod" } });
   assert.equal(checkout.statusCode, 201, checkout.body);
+  assert.equal(Number(checkout.json().order.total), 450);
   const customer = await client.query("select id from customers where shop_id = $1 and phone = $2", [shopId, phone]);
   const customerId = customer.rows[0].id;
   const list = await app.inject({ method: "GET", url: `/api/v1/customers/shops/${shopId}/customers`, headers: { authorization: `Bearer ${token}` } });
@@ -36,9 +39,18 @@ try {
   const tagged = await app.inject({ method: "POST", url: `/api/v1/customers/shops/${shopId}/customers/${customerId}/tags`, headers: { authorization: `Bearer ${token}` }, payload: { name: "vip" } });
   assert.equal(tagged.statusCode, 200, tagged.body);
   assert.equal(tagged.json().tags[0].name, "vip");
+  const segment = await app.inject({ method: "POST", url: `/api/v1/marketing/shops/${shopId}/segments`, headers: { authorization: `Bearer ${token}` }, payload: { name: "VIP Buyers", definition: { tag: "vip", minOrders: 1, minLifetimeValue: 0 } } });
+  assert.equal(segment.statusCode, 201, segment.body);
+  const segmentId = segment.json().segment.id;
+  const preview = await app.inject({ method: "POST", url: `/api/v1/marketing/shops/${shopId}/segments/${segmentId}/preview`, headers: { authorization: `Bearer ${token}` } });
+  assert.equal(preview.statusCode, 200, preview.body);
+  assert.equal(preview.json().count, 1);
   const consent = await app.inject({ method: "PATCH", url: `/api/v1/customers/shops/${shopId}/customers/${customerId}/consent`, headers: { authorization: `Bearer ${token}` }, payload: { status: "opted_out", reason: "Buyer requested no marketing" } });
   assert.equal(consent.statusCode, 200, consent.body);
   assert.equal(consent.json().customer.consent_status, "opted_out");
   assert.ok(consent.json().timeline.some((event) => event.type === "order"));
+  const optedOutPreview = await app.inject({ method: "POST", url: `/api/v1/marketing/shops/${shopId}/segments/${segmentId}/preview`, headers: { authorization: `Bearer ${token}` } });
+  assert.equal(optedOutPreview.statusCode, 200, optedOutPreview.body);
+  assert.equal(optedOutPreview.json().count, 0);
   console.log("Customers DB smoke passed.");
 } finally { await client.end(); await app.close(); }
