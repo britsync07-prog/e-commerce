@@ -20,7 +20,7 @@ const schema = z.object({
   META_APP_SECRET: z.string().min(1).optional(),
   META_OAUTH_REDIRECT_URI: z.string().url().optional(),
   META_OAUTH_SCOPES: z.string().default("pages_show_list,pages_read_engagement,pages_manage_metadata"),
-  META_GRAPH_VERSION: z.string().regex(/^v\\d+\\.\\d+$/).default("v23.0"),
+  META_GRAPH_VERSION: z.string().regex(/^v\d+\.\d+$/).default("v23.0"),
   META_TOKEN_ENCRYPTION_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/).optional()
 });
 
