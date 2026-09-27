@@ -9,8 +9,9 @@ Purpose:
 - Provides test-only template references for storefront selection.
 
 Auth:
-- Temporary public onboarding API until auth/session module exists.
-- Production rule: bind these calls to authenticated owner session.
+- `POST /start` can use `Authorization: Bearer <token>` to attach the shop to the logged-in owner.
+- Public website-only live-test start still works and creates an owner user without password.
+- Production rule: dashboard onboarding must require authenticated owner session.
 
 ## `POST /subdomain/check`
 
@@ -103,8 +104,9 @@ Response:
 - Full onboarding state: owner, shop, products, channels, audit, launchChecklist.
 
 Side effects:
-- Creates owner.
-- Creates draft shop.
+- Creates or reuses owner user.
+- Creates draft shop in PostgreSQL.
+- Creates `shop_staff` owner membership.
 - Reserves subdomain.
 - Sets default COD policy and suggest-only AI mode.
 
@@ -188,7 +190,8 @@ Request:
 ```
 
 Side effects:
-- Creates active first product.
+- Creates active product and default variant in PostgreSQL.
+- Writes opening stock to `inventory_ledger`.
 - Moves onboarding step to `channels`.
 
 Audit/timeline:

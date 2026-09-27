@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { ZodError, type ZodTypeAny } from "zod";
+import { bearerToken, getSession } from "../auth/auth.service.js";
 import { onboardingService, OnboardingError } from "./onboarding.service.js";
 import {
   addProductSchema,
@@ -53,7 +54,9 @@ export async function registerOnboardingRoutes(app: FastifyInstance) {
   app.post("/start", async (request, reply) => {
     try {
       const body = parse(startOnboardingSchema, request.body);
-      return reply.code(201).send(onboardingService.start(body));
+      const token = bearerToken(request.headers.authorization);
+      const session = token ? await getSession(token) : undefined;
+      return reply.code(201).send(await onboardingService.start({ ...body, ownerUserId: session?.user.id as string | undefined }));
     } catch (error) {
       const result = handleError(error);
       return reply.code(result.statusCode).send(result.body);
@@ -85,7 +88,7 @@ export async function registerOnboardingRoutes(app: FastifyInstance) {
     try {
       const params = parse(shopParamsSchema, request.params);
       const body = parse(addProductSchema, request.body);
-      return reply.code(201).send(onboardingService.addProduct(params.shopId, body));
+      return reply.code(201).send(await onboardingService.addProduct(params.shopId, body));
     } catch (error) {
       const result = handleError(error);
       return reply.code(result.statusCode).send(result.body);
