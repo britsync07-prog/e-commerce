@@ -23,6 +23,7 @@
     "test:payments-db": "npm run build && node test/payments-db-smoke.mjs",
     "test:analytics-db": "npm run build && node test/analytics-db-smoke.mjs",
     "test:customers-db": "npm run build && node test/customers-db-smoke.mjs",
+    "test:meta-db": "npm run build && node test/meta-db-smoke.mjs",
     "test:onboarding": "npm run build && node test/onboarding.integration.mjs"
   },
   "dependencies": {
