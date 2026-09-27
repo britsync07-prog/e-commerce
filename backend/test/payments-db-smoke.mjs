@@ -24,7 +24,7 @@ try {
   await app.inject({ method: "PATCH", url: `/api/v1/onboarding/${shopId}/ai-mode`, payload: { aiMode: "suggest" } });
   await app.inject({ method: "POST", url: `/api/v1/onboarding/${shopId}/launch` });
   const variant = await client.query("select id from product_variants where shop_id = $1 limit 1", [shopId]);
-  const checkout = await app.inject({ method: "POST", url: "/api/v1/orders/checkout", payload: { subdomain: `payments-${stamp}`, customer: { name: "Buyer", phone: `+88017${stamp.toString().slice(-8)}`, address: "Dhaka" }, items: [{ variantId: variant.rows[0].id, quantity: 1 }], paymentMethod: "cod" } });
+  const checkout = await app.inject({ method: "POST", url: "/api/v1/orders/checkout", payload: { subdomain: `payments-${stamp}`, customer: { name: "Buyer", phone: `+88017${stamp.toString().slice(-8)}`, address: "House 1, Dhaka" }, items: [{ variantId: variant.rows[0].id, quantity: 1 }], paymentMethod: "cod" } });
   assert.equal(checkout.statusCode, 201, checkout.body);
   const orderId = checkout.json().order.id;
   const marked = await app.inject({ method: "POST", url: `/api/v1/payments/shops/${shopId}/orders/${orderId}/payments/manual`, headers: { authorization: `Bearer ${token}` }, payload: { note: "Cash received" } });
