@@ -88,6 +88,42 @@ Errors: `META_CONNECTION_NOT_FOUND`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, 
 
 Provider verification and outbound Graph API workers are intentionally deferred until the Meta connection is configured. Sellers never provide API tokens; the platform requires its own Meta App ID, App Secret, redirect URI, and 32-byte encryption key in server environment variables.
 
+## `POST /shops/:shopId/campaign-stats/import`
+
+Purpose: Store a normalized daily Meta campaign snapshot from the provider worker or an approved manual import.
+
+Auth: Requires `marketing:write`.
+
+Request: `{ "connectionId": "uuid", "campaignId": "campaign-1", "campaignName": "Spring", "metricDate": "2026-09-28", "spend": 100, "impressions": 5000, "clicks": 120, "providerAttributedOrders": 4, "providerPlacedRevenue": 2400, "providerDeliveredRevenue": 1800, "attributionStatus": "known|unknown" }`.
+
+Response: `201` with the upserted daily stats row.
+
+Side effects: Upserts one shop/campaign/date snapshot. It never changes ad budgets or local order state.
+
+Audit/timeline: Writes `meta.campaign_stats_imported`; raw tokens are never logged.
+
+Cache: Invalidate campaign reports after import.
+
+Errors: `META_CONNECTION_REQUIRED`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
+
+## `GET /shops/:shopId/campaign-stats`
+
+Purpose: Report campaign spend, provider metrics, local placed revenue, and local delivered revenue.
+
+Auth: Requires `marketing:read`.
+
+Request: Path `shopId` UUID. Query `from` and `to` dates (`YYYY-MM-DD`).
+
+Response: `{ "period": { "from": "...", "to": "..." }, "campaigns": [{ "campaign_id": "campaign-1", "attribution_status": "unknown", "local": { "placed_revenue": "2400", "delivered_revenue": "1800" } }], "totals": { "spend": 100, "placedRevenue": 2400, "deliveredRevenue": 1800 }, "unknownAttribution": 1 }`.
+
+Side effects: None. Local revenue is derived from PostgreSQL orders and never inferred from spend.
+
+Audit/timeline: None for read-only reporting.
+
+Cache: Client may cache briefly; refetch after imports or order status changes.
+
+Errors: `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
+
 ## `GET /shops/:shopId/catalog-sync`
 
 Purpose: Read the shop's Meta catalog sync configuration and last known state.

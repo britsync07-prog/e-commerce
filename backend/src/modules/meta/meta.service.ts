@@ -131,6 +131,24 @@ export async function previewCatalog(shopId: string, input: { skipUnpublished: b
   return { settings: input, summary: { products: products.size, variants: [...products.values()].reduce((total, product) => total + product.variants.length, 0), skippedVariants: skipped }, products: [...products.values()] };
 }
 
+export async function importCampaignStats(shopId: string, input: { connectionId?: string; campaignId: string; campaignName?: string; metricDate: string; spend: number; impressions: number; clicks: number; providerAttributedOrders: number; providerPlacedRevenue: number; providerDeliveredRevenue: number; attributionStatus: "known" | "unknown" }, actorId: string) {
+  if (input.connectionId) {
+    const connection = await db.query("select id from meta_connections where shop_id = $1 and id = $2 and status = 'active'", [shopId, input.connectionId]);
+    if (!connection.rowCount) throw new MetaError("Meta connection not found or disabled.", 409, "META_CONNECTION_REQUIRED");
+  }
+  const result = await db.query(`insert into meta_campaign_stats (shop_id, connection_id, campaign_id, campaign_name, metric_date, spend, impressions, clicks, provider_attributed_orders, provider_placed_revenue, provider_delivered_revenue, attribution_status) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) on conflict (shop_id, campaign_id, metric_date) do update set connection_id = excluded.connection_id, campaign_name = excluded.campaign_name, spend = excluded.spend, impressions = excluded.impressions, clicks = excluded.clicks, provider_attributed_orders = excluded.provider_attributed_orders, provider_placed_revenue = excluded.provider_placed_revenue, provider_delivered_revenue = excluded.provider_delivered_revenue, attribution_status = excluded.attribution_status, imported_at = now(), updated_at = now() returning id, shop_id, connection_id, campaign_id, campaign_name, metric_date, spend, impressions, clicks, provider_attributed_orders, provider_placed_revenue, provider_delivered_revenue, attribution_status, imported_at, updated_at`, [shopId, input.connectionId ?? null, input.campaignId, input.campaignName ?? null, input.metricDate, input.spend, input.impressions, input.clicks, input.providerAttributedOrders, input.providerPlacedRevenue, input.providerDeliveredRevenue, input.attributionStatus]);
+  await audit(shopId, actorId, "meta.campaign_stats_imported", "meta_campaign_stats", result.rows[0].id, { campaignId: input.campaignId, metricDate: input.metricDate, attributionStatus: input.attributionStatus });
+  return { stats: result.rows[0] };
+}
+
+export async function listCampaignStats(shopId: string, input: { from: string; to: string }) {
+  const stats = await db.query(`select id, campaign_id, campaign_name, metric_date, spend, impressions, clicks, provider_attributed_orders, provider_placed_revenue, provider_delivered_revenue, attribution_status, imported_at from meta_campaign_stats where shop_id = $1 and metric_date between $2::date and $3::date order by metric_date desc, campaign_name asc`, [shopId, input.from, input.to]);
+  const attributed = await db.query(`select attribution_campaign_id as campaign_id, count(*)::int as placed_orders, coalesce(sum(total), 0)::numeric as placed_revenue, count(*) filter (where status = 'delivered')::int as delivered_orders, coalesce(sum(total) filter (where status = 'delivered'), 0)::numeric as delivered_revenue from orders where shop_id = $1 and attribution_campaign_id is not null and created_at >= $2::date and created_at < ($3::date + interval '1 day') group by attribution_campaign_id`, [shopId, input.from, input.to]);
+  const attributedByCampaign = new Map(attributed.rows.map((row) => [row.campaign_id, row]));
+  const campaigns = stats.rows.map((row) => ({ ...row, local: attributedByCampaign.get(row.campaign_id) ?? { placed_orders: 0, placed_revenue: "0", delivered_orders: 0, delivered_revenue: "0" } }));
+  return { period: input, campaigns, totals: campaigns.reduce((total, row) => ({ spend: Number(total.spend) + Number(row.spend), impressions: total.impressions + Number(row.impressions), clicks: total.clicks + Number(row.clicks), placedRevenue: Number(total.placedRevenue) + Number(row.local.placed_revenue), deliveredRevenue: Number(total.deliveredRevenue) + Number(row.local.delivered_revenue) }), { spend: 0, impressions: 0, clicks: 0, placedRevenue: 0, deliveredRevenue: 0 }), unknownAttribution: campaigns.filter((row) => row.attribution_status === "unknown").length };
+}
+
 export function verifySignature(payload: unknown, signature: string | undefined) {
   if (!config.metaWebhookSecret) throw new MetaError("Meta webhook secret is not configured.", 503, "META_WEBHOOK_NOT_CONFIGURED");
   if (!signature?.startsWith("sha256=")) throw new MetaError("A valid Meta webhook signature is required.", 401, "META_WEBHOOK_SIGNATURE_INVALID");

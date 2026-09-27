@@ -28,6 +28,7 @@ export async function submitCheckout(input: {
   customer: { name: string; phone: string; address: string; city?: string; area?: string };
   items: { variantId: string; quantity: number }[];
   couponCode?: string;
+  attribution?: { source: string; campaignId?: string; data?: Record<string, unknown> };
   paymentMethod: "cod";
 }) {
   const client = await db.connect();
@@ -94,8 +95,8 @@ export async function submitCheckout(input: {
     const total = subtotal - discountAmount + deliveryCharge;
     const order = await client.query(
       `
-        insert into orders (shop_id, customer_id, source, status, payment_method, currency, subtotal, delivery_charge, discount_amount, total, coupon_id, buyer_snapshot)
-        values ($1, $2, 'storefront', 'confirmed', $3, $4, $5, $6, $7, $8, $9, $10)
+        insert into orders (shop_id, customer_id, source, status, payment_method, currency, subtotal, delivery_charge, discount_amount, total, coupon_id, buyer_snapshot, attribution_source, attribution_campaign_id, attribution_data)
+        values ($1, $2, 'storefront', 'confirmed', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         returning id, shop_id, status, currency, subtotal, delivery_charge, discount_amount, total, coupon_id, created_at
       `,
       [
@@ -108,7 +109,10 @@ export async function submitCheckout(input: {
         discountAmount,
         total,
         couponId,
-        { name: input.customer.name, phone: input.customer.phone, address: input.customer.address, city: input.customer.city, area: input.customer.area }
+        { name: input.customer.name, phone: input.customer.phone, address: input.customer.address, city: input.customer.city, area: input.customer.area },
+        input.attribution?.source ?? "unknown",
+        input.attribution?.campaignId ?? null,
+        input.attribution?.data ?? {}
       ]
     );
 

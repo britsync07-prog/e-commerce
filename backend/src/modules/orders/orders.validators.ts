@@ -16,6 +16,7 @@ export const checkoutSchema = z.object({
     })
   ).min(1).max(50),
   couponCode: z.string().trim().min(2).max(40).optional(),
+  attribution: z.object({ source: z.string().trim().min(1).max(60).default("unknown"), campaignId: z.string().trim().min(1).max(160).optional(), data: z.record(z.unknown()).optional() }).optional(),
   paymentMethod: z.enum(["cod"]).default("cod")
 });
 

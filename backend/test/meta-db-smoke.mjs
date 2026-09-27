@@ -40,6 +40,12 @@ try {
   assert.equal(preview.statusCode, 200, preview.body);
   assert.equal(preview.json().summary.products, 1);
   assert.equal(preview.json().summary.variants, 1);
+  const imported = await app.inject({ method: "POST", url: `/api/v1/meta/shops/${shopId}/campaign-stats/import`, headers: { authorization: `Bearer ${token}` }, payload: { connectionId, campaignId: `campaign-${stamp}`, campaignName: "Smoke Campaign", metricDate: "2026-09-28", spend: 100, impressions: 1000, clicks: 20, providerAttributedOrders: 1, providerPlacedRevenue: 700, providerDeliveredRevenue: 0, attributionStatus: "unknown" } });
+  assert.equal(imported.statusCode, 201, imported.body);
+  const campaignStats = await app.inject({ method: "GET", url: `/api/v1/meta/shops/${shopId}/campaign-stats?from=2026-09-01&to=2026-09-30`, headers: { authorization: `Bearer ${token}` } });
+  assert.equal(campaignStats.statusCode, 200, campaignStats.body);
+  assert.equal(campaignStats.json().campaigns.length, 1);
+  assert.equal(campaignStats.json().unknownAttribution, 1);
 
   const payload = { object: "page", entry: [{ id: `page-${stamp}`, changes: [{ field: "messages", value: { text: "hello" } }] }] };
   const signature = `sha256=${crypto.createHmac("sha256", process.env.META_WEBHOOK_SECRET).update(JSON.stringify(payload)).digest("hex")}`;

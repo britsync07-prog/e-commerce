@@ -2,8 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { ZodError, type ZodTypeAny } from "zod";
 import { AuthError } from "../auth/auth.service.js";
 import { PermissionError, requireShopPermission } from "../../shared/permissions.js";
-import { completeOAuth, getCatalogSync, handleOAuthCallback, listConnections, MetaError, previewCatalog, saveCatalogSync, startOAuth, updateConnection } from "./meta.service.js";
-import { catalogSyncSchema, connectionParamsSchema, oauthCompleteSchema, shopParamsSchema, updateConnectionSchema } from "./meta.validators.js";
+import { completeOAuth, getCatalogSync, handleOAuthCallback, importCampaignStats, listCampaignStats, listConnections, MetaError, previewCatalog, saveCatalogSync, startOAuth, updateConnection } from "./meta.service.js";
+import { campaignStatsImportSchema, campaignStatsQuerySchema, catalogSyncSchema, connectionParamsSchema, oauthCompleteSchema, shopParamsSchema, updateConnectionSchema } from "./meta.validators.js";
 
 function parse<T extends ZodTypeAny>(schema: T, value: unknown) { return schema.parse(value) as T["_output"]; }
 function handleError(error: unknown) {
@@ -43,6 +43,14 @@ export async function registerMetaRoutes(app: FastifyInstance) {
   });
   app.post("/shops/:shopId/catalog-sync/preview", async (request, reply) => {
     try { const params = parse(shopParamsSchema, request.params); const body = parse(catalogSyncSchema.pick({ skipUnpublished: true, skipOutOfStock: true }), request.body); await requireShopPermission(request, params.shopId, "settings:read"); return previewCatalog(params.shopId, body); }
+    catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
+  });
+  app.get("/shops/:shopId/campaign-stats", async (request, reply) => {
+    try { const params = parse(shopParamsSchema, request.params); const query = parse(campaignStatsQuerySchema, request.query); await requireShopPermission(request, params.shopId, "marketing:read"); return listCampaignStats(params.shopId, query); }
+    catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
+  });
+  app.post("/shops/:shopId/campaign-stats/import", async (request, reply) => {
+    try { const params = parse(shopParamsSchema, request.params); const body = parse(campaignStatsImportSchema, request.body); const session = await requireShopPermission(request, params.shopId, "marketing:write"); return reply.code(201).send(await importCampaignStats(params.shopId, body, session.user.id as string)); }
     catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
   });
 }
