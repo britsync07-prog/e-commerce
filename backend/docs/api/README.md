@@ -14,10 +14,11 @@ Every API route must have a matching Markdown doc in this folder.
 - Cache behavior.
 - Errors.
 
+Payments are manual/COD-first in this phase. `marked_paid` is an operator assertion, not a bank or gateway confirmation.
+
 ## Check
 
 ```powershell
 cd backend
 npm run check:api-docs
 ```
-
