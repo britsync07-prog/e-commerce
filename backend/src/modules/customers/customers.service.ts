@@ -6,7 +6,7 @@ export class CustomerError extends Error {
 
 export async function listCustomers(shopId: string, input: { search?: string; consentStatus?: string; limit: number }) {
   const values: unknown[] = [shopId, input.limit];
-  const filters = ["c.shop_id = $1"];
+  const filters = ["c.shop_id = $1", "c.status = 'active'"];
   if (input.search) { values.push(`%${input.search}%`); filters.push(`(c.name ilike $${values.length} or c.phone ilike $${values.length})`); }
   if (input.consentStatus) { values.push(input.consentStatus); filters.push(`c.consent_status = $${values.length}`); }
   const result = await db.query(
@@ -25,7 +25,7 @@ export async function listCustomers(shopId: string, input: { search?: string; co
 }
 
 export async function getCustomer(shopId: string, customerId: string) {
-  const customer = await db.query("select id, shop_id, name, phone, language, consent_status, consent_updated_at, created_at, updated_at from customers where shop_id = $1 and id = $2", [shopId, customerId]);
+  const customer = await db.query("select id, shop_id, name, phone, language, consent_status, consent_updated_at, status, merged_into_customer_id, created_at, updated_at from customers where shop_id = $1 and id = $2", [shopId, customerId]);
   if (!customer.rowCount) throw new CustomerError("Customer not found.", 404, "CUSTOMER_NOT_FOUND");
   const [addresses, tags, orders, payments, messages, shipments] = await Promise.all([
     db.query("select id, address, city, area, created_at from customer_addresses where shop_id = $1 and customer_id = $2 order by created_at desc", [shopId, customerId]),
@@ -55,7 +55,7 @@ export async function addTag(shopId: string, customerId: string, name: string, a
   const client = await db.connect();
   try {
     await client.query("begin");
-    const customer = await client.query("select id from customers where shop_id = $1 and id = $2", [shopId, customerId]);
+    const customer = await client.query("select id from customers where shop_id = $1 and id = $2 and status = 'active'", [shopId, customerId]);
     if (!customer.rowCount) throw new CustomerError("Customer not found.", 404, "CUSTOMER_NOT_FOUND");
     const tag = await client.query("insert into customer_tags (shop_id, name) values ($1, $2) on conflict (shop_id, name) do update set name = excluded.name returning id", [shopId, name]);
     await client.query("insert into customer_tag_links (shop_id, customer_id, tag_id) values ($1, $2, $3) on conflict do nothing", [shopId, customerId, tag.rows[0].id]);
@@ -63,6 +63,43 @@ export async function addTag(shopId: string, customerId: string, name: string, a
     await client.query("commit");
   } catch (error) { await client.query("rollback"); throw error; } finally { client.release(); }
   return getCustomer(shopId, customerId);
+}
+
+export async function previewMerge(shopId: string, sourceCustomerId: string, targetCustomerId: string) {
+  if (sourceCustomerId === targetCustomerId) throw new CustomerError("Source and target customers must be different.", 400, "MERGE_SAME_CUSTOMER");
+  const customers = await db.query("select id, name, phone, consent_status, status, merged_into_customer_id from customers where shop_id = $1 and id = any($2::uuid[]) order by id", [shopId, [sourceCustomerId, targetCustomerId]]);
+  if (customers.rowCount !== 2) throw new CustomerError("Both customers must belong to this shop.", 404, "CUSTOMER_NOT_FOUND");
+  const source = customers.rows.find((row) => row.id === sourceCustomerId);
+  const target = customers.rows.find((row) => row.id === targetCustomerId);
+  if (source.status !== "active" || target.status !== "active") throw new CustomerError("Only active customers can be merged.", 409, "CUSTOMER_NOT_ACTIVE");
+  const [orders, addresses, tags] = await Promise.all([
+    db.query("select customer_id, count(*)::int as count, coalesce(sum(total), 0)::numeric as value from orders where shop_id = $1 and customer_id = any($2::uuid[]) group by customer_id", [shopId, [sourceCustomerId, targetCustomerId]]),
+    db.query("select customer_id, count(*)::int as count from customer_addresses where shop_id = $1 and customer_id = any($2::uuid[]) group by customer_id", [shopId, [sourceCustomerId, targetCustomerId]]),
+    db.query("select ct.name, ctl.customer_id from customer_tag_links ctl join customer_tags ct on ct.id = ctl.tag_id and ct.shop_id = ctl.shop_id where ctl.shop_id = $1 and ctl.customer_id = any($2::uuid[]) order by ct.name", [shopId, [sourceCustomerId, targetCustomerId]])
+  ]);
+  return { source, target, impact: { orders: orders.rows, addresses: addresses.rows, tags: tags.rows }, warnings: source.consent_status === "opted_out" && target.consent_status !== "opted_out" ? ["Target will inherit opted_out consent."] : [] };
+}
+
+export async function mergeCustomers(shopId: string, sourceCustomerId: string, targetCustomerId: string, reason: string, actorId: string) {
+  if (sourceCustomerId === targetCustomerId) throw new CustomerError("Source and target customers must be different.", 400, "MERGE_SAME_CUSTOMER");
+  const client = await db.connect();
+  try {
+    await client.query("begin");
+    const customers = await client.query("select id, consent_status, status from customers where shop_id = $1 and id = any($2::uuid[]) order by id for update", [shopId, [sourceCustomerId, targetCustomerId]]);
+    if (customers.rowCount !== 2) throw new CustomerError("Both customers must belong to this shop.", 404, "CUSTOMER_NOT_FOUND");
+    const source = customers.rows.find((row) => row.id === sourceCustomerId);
+    const target = customers.rows.find((row) => row.id === targetCustomerId);
+    if (source.status !== "active" || target.status !== "active") throw new CustomerError("Only active customers can be merged.", 409, "CUSTOMER_NOT_ACTIVE");
+    await client.query("update orders set customer_id = $3, updated_at = now() where shop_id = $1 and customer_id = $2", [shopId, sourceCustomerId, targetCustomerId]);
+    await client.query("update customer_addresses set customer_id = $3 where shop_id = $1 and customer_id = $2", [shopId, sourceCustomerId, targetCustomerId]);
+    await client.query("insert into customer_tag_links (shop_id, customer_id, tag_id) select shop_id, $3, tag_id from customer_tag_links where shop_id = $1 and customer_id = $2 on conflict do nothing", [shopId, sourceCustomerId, targetCustomerId]);
+    await client.query("delete from customer_tag_links where shop_id = $1 and customer_id = $2", [shopId, sourceCustomerId]);
+    if (source.consent_status === "opted_out") await client.query("update customers set consent_status = 'opted_out', consent_updated_at = now() where shop_id = $1 and id = $2", [shopId, targetCustomerId]);
+    await client.query("update customers set status = 'merged', merged_into_customer_id = $3, updated_at = now() where shop_id = $1 and id = $2", [shopId, sourceCustomerId, targetCustomerId]);
+    await client.query("insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'staff', $2, 'customer.merge_completed', 'customer', $3, $4)", [shopId, actorId, targetCustomerId, JSON.stringify({ sourceCustomerId, targetCustomerId, reason })]);
+    await client.query("commit");
+  } catch (error) { await client.query("rollback"); throw error; } finally { client.release(); }
+  return getCustomer(shopId, targetCustomerId);
 }
 
 async function writeAudit(shopId: string, actorId: string, action: string, targetType: string, targetId: string, metadata: unknown) {

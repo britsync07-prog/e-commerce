@@ -64,5 +64,17 @@ try {
   const optedOutBroadcastPreview = await app.inject({ method: "POST", url: `/api/v1/marketing/shops/${shopId}/broadcasts/${broadcastId}/preview`, headers: { authorization: `Bearer ${token}` } });
   assert.equal(optedOutBroadcastPreview.statusCode, 200, optedOutBroadcastPreview.body);
   assert.equal(optedOutBroadcastPreview.json().audienceCount, 0);
+  const duplicate = await client.query("insert into customers (shop_id, name, phone) values ($1, $2, $3) returning id", [shopId, "Duplicate Buyer", `+88018${stamp.toString().slice(-8)}`]);
+  const duplicateId = duplicate.rows[0].id;
+  await client.query("update orders set customer_id = $2 where shop_id = $1 and id = $3", [shopId, duplicateId, checkout.json().order.id]);
+  const mergePreview = await app.inject({ method: "POST", url: `/api/v1/customers/shops/${shopId}/customers/merge-preview`, headers: { authorization: `Bearer ${token}` }, payload: { sourceCustomerId: duplicateId, targetCustomerId: customerId } });
+  assert.equal(mergePreview.statusCode, 200, mergePreview.body);
+  assert.equal(mergePreview.json().impact.orders.find((row) => row.customer_id === duplicateId).count, 1);
+  const merged = await app.inject({ method: "POST", url: `/api/v1/customers/shops/${shopId}/customers/merge`, headers: { authorization: `Bearer ${token}` }, payload: { sourceCustomerId: duplicateId, targetCustomerId: customerId, confirm: true, reason: "Duplicate checkout profile confirmed" } });
+  assert.equal(merged.statusCode, 200, merged.body);
+  assert.ok(merged.json().timeline.some((event) => event.type === "order"));
+  const sourceState = await client.query("select status, merged_into_customer_id from customers where shop_id = $1 and id = $2", [shopId, duplicateId]);
+  assert.equal(sourceState.rows[0].status, "merged");
+  assert.equal(sourceState.rows[0].merged_into_customer_id, customerId);
   console.log("Customers DB smoke passed.");
 } finally { await client.end(); await app.close(); }

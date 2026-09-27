@@ -2,8 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { ZodError, type ZodTypeAny } from "zod";
 import { AuthError } from "../auth/auth.service.js";
 import { PermissionError, requireShopPermission } from "../../shared/permissions.js";
-import { addTag, CustomerError, getCustomer, listCustomers, updateConsent } from "./customers.service.js";
-import { consentSchema, customerListQuerySchema, customerParamsSchema, shopParamsSchema, tagSchema } from "./customers.validators.js";
+import { addTag, CustomerError, getCustomer, listCustomers, mergeCustomers, previewMerge, updateConsent } from "./customers.service.js";
+import { consentSchema, customerListQuerySchema, customerParamsSchema, mergeApplySchema, mergePairSchema, shopParamsSchema, tagSchema } from "./customers.validators.js";
 
 function parse<T extends ZodTypeAny>(schema: T, value: unknown) { return schema.parse(value) as T["_output"]; }
 function handleError(error: unknown) {
@@ -13,6 +13,14 @@ function handleError(error: unknown) {
 }
 
 export async function registerCustomerRoutes(app: FastifyInstance) {
+  app.post("/shops/:shopId/customers/merge-preview", async (request, reply) => {
+    try { const params = parse(shopParamsSchema, request.params); const body = parse(mergePairSchema, request.body); await requireShopPermission(request, params.shopId, "customers:read"); return previewMerge(params.shopId, body.sourceCustomerId, body.targetCustomerId); }
+    catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
+  });
+  app.post("/shops/:shopId/customers/merge", async (request, reply) => {
+    try { const params = parse(shopParamsSchema, request.params); const body = parse(mergeApplySchema, request.body); const session = await requireShopPermission(request, params.shopId, "customers:write"); return mergeCustomers(params.shopId, body.sourceCustomerId, body.targetCustomerId, body.reason, session.user.id as string); }
+    catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
+  });
   app.get("/shops/:shopId/customers", async (request, reply) => {
     try { const params = parse(shopParamsSchema, request.params); const query = parse(customerListQuerySchema, request.query); await requireShopPermission(request, params.shopId, "customers:read"); return listCustomers(params.shopId, query); }
     catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }

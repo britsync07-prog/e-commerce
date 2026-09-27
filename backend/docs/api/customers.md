@@ -34,6 +34,42 @@ Cache: Client may cache briefly. Refetch after any customer/order/inbox/payment/
 
 Errors: `CUSTOMER_NOT_FOUND`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
 
+## `POST /shops/:shopId/customers/merge-preview`
+
+Purpose: Compare two active customers before a merge.
+
+Auth: Requires `customers:read`.
+
+Request: `{ "sourceCustomerId": "uuid", "targetCustomerId": "uuid" }`.
+
+Response: Includes both profiles, order/address/tag impact counts, and consent warnings. No records are changed.
+
+Side effects: None.
+
+Audit/timeline: None.
+
+Cache: No server cache; preview immediately before applying.
+
+Errors: `CUSTOMER_NOT_FOUND`, `CUSTOMER_NOT_ACTIVE`, `MERGE_SAME_CUSTOMER`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
+
+## `POST /shops/:shopId/customers/merge`
+
+Purpose: Apply an explicitly confirmed customer merge without deleting history.
+
+Auth: Requires `customers:write`.
+
+Request: `{ "sourceCustomerId": "uuid", "targetCustomerId": "uuid", "confirm": true, "reason": "Duplicate checkout profile confirmed" }`.
+
+Response: The surviving target customer detail with moved timeline data.
+
+Side effects: Moves source orders, addresses, and tags to the target in one transaction; marks the source `merged` with `merged_into_customer_id`; preserves the source row; and inherits `opted_out` consent onto the target when applicable.
+
+Audit/timeline: Writes `customer.merge_completed` audit with source, target, and reason.
+
+Cache: Invalidate both customer records, segment previews, and campaign audience previews.
+
+Errors: `CUSTOMER_NOT_FOUND`, `CUSTOMER_NOT_ACTIVE`, `MERGE_SAME_CUSTOMER`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
+
 ## `PATCH /shops/:shopId/customers/:customerId/consent`
 
 Purpose: Set customer marketing consent or opt-out state.

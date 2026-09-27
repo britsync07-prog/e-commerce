@@ -12,3 +12,5 @@ export const consentSchema = z.object({
   reason: z.string().trim().min(3).max(300)
 });
 export const tagSchema = z.object({ name: z.string().trim().min(1).max(40) });
+export const mergePairSchema = z.object({ sourceCustomerId: z.string().uuid(), targetCustomerId: z.string().uuid() });
+export const mergeApplySchema = mergePairSchema.extend({ confirm: z.literal(true), reason: z.string().trim().min(5).max(500) });
