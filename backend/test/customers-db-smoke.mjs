@@ -61,7 +61,7 @@ try {
   const optedOutPreview = await app.inject({ method: "POST", url: `/api/v1/marketing/shops/${shopId}/segments/${segmentId}/preview`, headers: { authorization: `Bearer ${token}` } });
   assert.equal(optedOutPreview.statusCode, 200, optedOutPreview.body);
   assert.equal(optedOutPreview.json().count, 0);
-  const optedOutBroadcastPreview = await app.inject({ method: "POST", url: `/api/v1/marketing/shops/${shopId}/broadcasts/${broadcastId}/preview`, headers: { authorization: `Bearer ${token}` });
+  const optedOutBroadcastPreview = await app.inject({ method: "POST", url: `/api/v1/marketing/shops/${shopId}/broadcasts/${broadcastId}/preview`, headers: { authorization: `Bearer ${token}` } });
   assert.equal(optedOutBroadcastPreview.statusCode, 200, optedOutBroadcastPreview.body);
   assert.equal(optedOutBroadcastPreview.json().audienceCount, 0);
   console.log("Customers DB smoke passed.");
