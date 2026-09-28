@@ -162,6 +162,64 @@ export async function updateProduct(
   return { product: updated.rows[0] };
 }
 
+export async function createVariant(
+  shopId: string,
+  productId: string,
+  input: { title: string; sku?: string; price: number; openingStock: number },
+  actorId: string
+) {
+  const client = await db.connect();
+  try {
+    await client.query("begin");
+    const product = await client.query("select id from products where shop_id = $1 and id = $2", [shopId, productId]);
+    if (!product.rowCount) throw new CatalogError("Product not found.", 404, "PRODUCT_NOT_FOUND");
+    const variant = await client.query(
+      `insert into product_variants (shop_id, product_id, sku, title, price)
+       values ($1, $2, $3, $4, $5)
+       returning id, shop_id, product_id, sku, title, price, status, created_at, updated_at`,
+      [shopId, productId, input.sku ?? null, input.title, input.price]
+    );
+    await writeInventory(client, shopId, variant.rows[0].id, "opening_stock", input.openingStock, actorId);
+    await writeAudit(client, shopId, "catalog.variant_created", "variant", variant.rows[0].id, { productId, openingStock: input.openingStock });
+    await client.query("commit");
+    return { variant: variant.rows[0], stock: input.openingStock };
+  } catch (error) {
+    await client.query("rollback");
+    if ((error as { code?: string }).code === "23505") throw new CatalogError("SKU already exists for this shop.", 409, "SKU_CONFLICT");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function updateVariant(
+  shopId: string,
+  productId: string,
+  variantId: string,
+  input: { title?: string; sku?: string | null; price?: number; status?: "active" | "archived" },
+  actorId: string
+) {
+  const current = await db.query("select id, title, sku, price, status from product_variants where shop_id = $1 and product_id = $2 and id = $3", [shopId, productId, variantId]);
+  if (!current.rowCount) throw new CatalogError("Variant not found.", 404, "VARIANT_NOT_FOUND");
+  try {
+    const updated = await db.query(
+      `update product_variants
+       set title = $4, sku = $5, price = $6, status = $7, updated_at = now()
+       where shop_id = $1 and product_id = $2 and id = $3
+       returning id, shop_id, product_id, sku, title, price, status, created_at, updated_at`,
+      [shopId, productId, variantId, input.title ?? current.rows[0].title, input.sku === undefined ? current.rows[0].sku : input.sku, input.price ?? current.rows[0].price, input.status ?? current.rows[0].status]
+    );
+    await db.query(
+      "insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'staff', $2, 'catalog.variant_updated', 'variant', $3, $4)",
+      [shopId, actorId, variantId, input]
+    );
+    return { variant: updated.rows[0] };
+  } catch (error) {
+    if ((error as { code?: string }).code === "23505") throw new CatalogError("SKU already exists for this shop.", 409, "SKU_CONFLICT");
+    throw error;
+  }
+}
+
 async function ensureShop(client: Pick<pg.Pool | pg.PoolClient, "query">, shopId: string) {
   const shop = await client.query("select id from shops where id = $1", [shopId]);
   if (!shop.rowCount) throw new CatalogError("Shop not found.", 404, "SHOP_NOT_FOUND");

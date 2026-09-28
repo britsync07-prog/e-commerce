@@ -176,3 +176,25 @@ Request: any of `name`, `description`, `status`, `basePrice`, and `currency`. Pu
 Side effects: updates the tenant-scoped product and writes `catalog.product_updated` audit data. Existing order snapshots are unchanged.
 
 Errors: `400 VALIDATION_ERROR`, `400 PRODUCT_PUBLISH_INVALID`, `401 AUTH_REQUIRED`, `403 SHOP_ACCESS_DENIED`, `403 PERMISSION_DENIED`, `404 PRODUCT_NOT_FOUND`.
+
+## `POST /shops/:shopId/products/:productId/variants`
+
+Purpose: add a product variant with SKU, price, and opening stock.
+
+Auth: Bearer session required; requires `catalog:write`.
+
+Request: `{ "title": "Black / XL", "sku": "PANJABI-BLACK-XL", "price": 1350, "openingStock": 8 }`.
+
+Side effects: inserts the tenant-scoped variant, writes opening stock to the inventory ledger, and audits `catalog.variant_created`.
+
+Errors: `404 PRODUCT_NOT_FOUND`, `409 SKU_CONFLICT`, `409 INSUFFICIENT_STOCK`.
+
+## `PATCH /shops/:shopId/products/:productId/variants/:variantId`
+
+Purpose: update variant title, SKU, price, or archive status.
+
+Auth: Bearer session required; requires `catalog:write`.
+
+Side effects: updates the variant and audits `catalog.variant_updated`. Existing order snapshots remain unchanged.
+
+Errors: `404 VARIANT_NOT_FOUND`, `409 SKU_CONFLICT`.

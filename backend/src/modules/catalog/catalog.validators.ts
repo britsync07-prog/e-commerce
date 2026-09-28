@@ -8,6 +8,10 @@ export const productParamsSchema = shopParamsSchema.extend({
   productId: z.string().uuid()
 });
 
+export const variantParamsSchema = productParamsSchema.extend({
+  variantId: z.string().uuid()
+});
+
 export const createProductSchema = z.object({
   name: z.string().trim().min(2).max(140),
   slug: z.string().trim().min(2).max(160).optional(),
@@ -26,4 +30,18 @@ export const updateProductSchema = z.object({
   status: z.enum(["draft", "active", "archived"]).optional(),
   basePrice: z.coerce.number().min(0).optional(),
   currency: z.string().trim().length(3).optional()
+});
+
+export const createVariantSchema = z.object({
+  title: z.string().trim().min(1).max(120),
+  sku: z.string().trim().min(1).max(80).optional(),
+  price: z.coerce.number().min(0),
+  openingStock: z.coerce.number().int().min(0).default(0)
+});
+
+export const updateVariantSchema = z.object({
+  title: z.string().trim().min(1).max(120).optional(),
+  sku: z.string().trim().min(1).max(80).nullable().optional(),
+  price: z.coerce.number().min(0).optional(),
+  status: z.enum(["active", "archived"]).optional()
 });

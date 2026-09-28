@@ -2,8 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { ZodError, type ZodTypeAny } from "zod";
 import { PermissionError, requireShopPermission } from "../../shared/permissions.js";
 import { AuthError } from "../auth/auth.service.js";
-import { CatalogError, createProduct, getProduct, listProducts, updateProduct } from "./catalog.service.js";
-import { createProductSchema, productParamsSchema, shopParamsSchema, updateProductSchema } from "./catalog.validators.js";
+import { CatalogError, createProduct, createVariant, getProduct, listProducts, updateProduct, updateVariant } from "./catalog.service.js";
+import { createProductSchema, createVariantSchema, productParamsSchema, shopParamsSchema, updateProductSchema, updateVariantSchema, variantParamsSchema } from "./catalog.validators.js";
 
 function parse<T extends ZodTypeAny>(schema: T, value: unknown) {
   return schema.parse(value) as T["_output"];
@@ -57,6 +57,30 @@ export async function registerCatalogRoutes(app: FastifyInstance) {
       const body = parse(updateProductSchema, request.body);
       const session = await requireShopPermission(request, params.shopId, "catalog:write");
       return updateProduct(params.shopId, params.productId, body, session.user.id as string);
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.post("/shops/:shopId/products/:productId/variants", async (request, reply) => {
+    try {
+      const params = parse(productParamsSchema, request.params);
+      const body = parse(createVariantSchema, request.body);
+      const session = await requireShopPermission(request, params.shopId, "catalog:write");
+      return reply.code(201).send(await createVariant(params.shopId, params.productId, body, session.user.id as string));
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.patch("/shops/:shopId/products/:productId/variants/:variantId", async (request, reply) => {
+    try {
+      const params = parse(variantParamsSchema, request.params);
+      const body = parse(updateVariantSchema, request.body);
+      const session = await requireShopPermission(request, params.shopId, "catalog:write");
+      return updateVariant(params.shopId, params.productId, params.variantId, body, session.user.id as string);
     } catch (error) {
       const result = handleError(error);
       return reply.code(result.statusCode).send(result.body);
