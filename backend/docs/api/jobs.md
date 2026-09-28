@@ -90,7 +90,7 @@ Request: `{ "reason": "Provider outage resolved; retry the import" }`.
 
 Response: Job reset to `pending` with attempts reset to zero.
 
-Side effects: Only dead jobs can be manually requeued. Workers claim jobs with row locks, back off retryable failures, and move exhausted/non-retryable failures to `dead`.
+Side effects: Only dead jobs can be manually requeued. Workers claim jobs with row locks, recover stale running locks after 5 minutes, back off retryable failures, and move exhausted/non-retryable failures to `dead`.
 
 Audit/timeline: Writes `job.retried` audit with the operator reason.
 

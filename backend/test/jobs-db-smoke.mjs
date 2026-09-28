@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { buildApp } from "../dist/app.js";
-import { recordWorkerHeartbeat } from "../dist/modules/jobs/jobs.service.js";
+import { claimNextJob, recordWorkerHeartbeat } from "../dist/modules/jobs/jobs.service.js";
+import { db } from "../dist/shared/db.js";
 
 if (!process.env.DATABASE_URL) { console.log("Skipping jobs DB smoke: DATABASE_URL is not set."); process.exit(0); }
 const app = await buildApp();
@@ -32,5 +33,12 @@ try {
   assert.equal(workers.statusCode, 200, workers.body);
   const worker = workers.json().workers.find((item) => item.worker_id === workerId);
   assert.equal(worker.healthy, true);
+  const stale = await db.query(
+    "insert into outbox_jobs (shop_id, queue, job_type, payload, status, attempts, max_attempts, locked_at, locked_by) values ($1, 'analytics', 'analytics.rebuild', '{}', 'running', 1, 3, now() - interval '10 minutes', 'dead-worker') returning id",
+    [shopId]
+  );
+  const recovered = await claimNextJob(`recovery-smoke-${stamp}`);
+  assert.equal(recovered.id, stale.rows[0].id);
+  assert.equal(recovered.attempts, 2);
   console.log("Jobs DB smoke passed.");
 } finally { await app.close(); }

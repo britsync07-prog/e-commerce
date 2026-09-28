@@ -65,6 +65,17 @@ export async function claimNextJob(workerId: string = randomUUID()) {
   const client = await db.connect();
   try {
     await client.query("begin");
+    await client.query(`
+      update outbox_jobs
+      set status = case when attempts >= max_attempts then 'dead' else 'failed' end,
+        last_error = 'STALE_LOCK: Worker lock expired before completion.',
+        dead_at = case when attempts >= max_attempts then now() else null end,
+        run_after = now(),
+        locked_at = null,
+        locked_by = null,
+        updated_at = now()
+      where status = 'running' and locked_at < now() - interval '5 minutes'
+    `);
     const result = await client.query("select id, shop_id, queue, job_type, payload, attempts, max_attempts from outbox_jobs where status in ('pending', 'failed') and run_after <= now() and attempts < max_attempts order by run_after asc, created_at asc for update skip locked limit 1");
     if (!result.rowCount) { await client.query("commit"); return null; }
     const job = await client.query("update outbox_jobs set status = 'running', attempts = attempts + 1, locked_at = now(), locked_by = $2, updated_at = now() where id = $1 returning id, shop_id, queue, job_type, payload, attempts, max_attempts", [result.rows[0].id, workerId]);
