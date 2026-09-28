@@ -11,12 +11,14 @@ npm install
 npm run dev
 ```
 
-Docker is planned:
+Docker local stack:
 
 ```powershell
 cd backend
 docker compose up --build
 ```
+
+The stack runs separate API and worker containers with PostgreSQL and Redis health checks.
 
 ## Database
 
