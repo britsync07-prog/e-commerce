@@ -220,6 +220,72 @@ export async function updateVariant(
   }
 }
 
+export async function importVariants(
+  shopId: string,
+  items: { productId: string; title: string; sku?: string; price: number; openingStock: number }[],
+  actorId: string
+) {
+  const client = await db.connect();
+  const imported: unknown[] = [];
+  const skipped: { sku?: string; reason: string }[] = [];
+  try {
+    await client.query("begin");
+    for (const item of items) {
+      const product = await client.query("select id from products where shop_id = $1 and id = $2", [shopId, item.productId]);
+      if (!product.rowCount) {
+        skipped.push({ sku: item.sku, reason: "PRODUCT_NOT_FOUND" });
+        continue;
+      }
+      const variant = await client.query(
+        `insert into product_variants (shop_id, product_id, sku, title, price)
+         values ($1, $2, $3, $4, $5)
+         on conflict (shop_id, sku) do nothing
+         returning id, product_id, sku, title, price, status`,
+        [shopId, item.productId, item.sku ?? null, item.title, item.price]
+      );
+      if (!variant.rowCount) {
+        skipped.push({ sku: item.sku, reason: "SKU_CONFLICT" });
+        continue;
+      }
+      await writeInventory(client, shopId, variant.rows[0].id, "opening_stock", item.openingStock, actorId);
+      imported.push({ ...variant.rows[0], openingStock: item.openingStock });
+    }
+    await writeAudit(client, shopId, "catalog.variants_imported", "shop", shopId, { imported: imported.length, skipped: skipped.length });
+    await client.query("commit");
+    return { imported, skipped };
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function exportProductsCsv(shopId: string) {
+  await ensureShop(db, shopId);
+  const result = await db.query(
+    `select p.name as product_name, p.slug, p.status as product_status, p.currency,
+       pv.title as variant_title, pv.sku, pv.price, pv.status as variant_status,
+       coalesce(sum(il.delta_quantity), 0)::int as stock
+     from products p join product_variants pv on pv.shop_id = p.shop_id and pv.product_id = p.id
+     left join inventory_ledger il on il.shop_id = pv.shop_id and il.variant_id = pv.id
+     where p.shop_id = $1
+     group by p.id, pv.id
+     order by p.created_at desc, pv.created_at asc`,
+    [shopId]
+  );
+  const headers = ["product_name", "slug", "product_status", "currency", "variant_title", "sku", "price", "variant_status", "stock"];
+  const csv = [headers, ...result.rows.map((row) => headers.map((header) => csvCell(row[header])))]
+    .map((row) => row.join(","))
+    .join("\n");
+  return { csv: `${csv}\n`, count: result.rowCount };
+}
+
+function csvCell(value: unknown) {
+  const text = value === null || value === undefined ? "" : String(value);
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
 async function ensureShop(client: Pick<pg.Pool | pg.PoolClient, "query">, shopId: string) {
   const shop = await client.query("select id from shops where id = $1", [shopId]);
   if (!shop.rowCount) throw new CatalogError("Shop not found.", 404, "SHOP_NOT_FOUND");

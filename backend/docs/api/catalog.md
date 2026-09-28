@@ -198,3 +198,23 @@ Auth: Bearer session required; requires `catalog:write`.
 Side effects: updates the variant and audits `catalog.variant_updated`. Existing order snapshots remain unchanged.
 
 Errors: `404 VARIANT_NOT_FOUND`, `409 SKU_CONFLICT`.
+
+## `POST /shops/:shopId/variants/import`
+
+Purpose: bulk-create variants from validated JSON rows.
+
+Auth: Bearer session required; requires `catalog:write`.
+
+Request: `{ "items": [{ "productId": "uuid", "title": "Black / XL", "sku": "SKU-XL", "price": 1350, "openingStock": 8 }] }`.
+
+Response: `{ "imported": [], "skipped": [{ "sku": "SKU-XL", "reason": "SKU_CONFLICT" }] }`.
+
+Duplicate SKUs and missing products are skipped per row; successful rows remain committed. Opening stock is written to the inventory ledger.
+
+## `GET /shops/:shopId/products/export?format=csv`
+
+Purpose: export products, variants, prices, statuses, SKUs, and current ledger stock as CSV.
+
+Auth: Bearer session required; requires `catalog:read`.
+
+Side effects: None. Export reads PostgreSQL as source of truth.

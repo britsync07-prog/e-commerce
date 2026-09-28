@@ -2,8 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { ZodError, type ZodTypeAny } from "zod";
 import { PermissionError, requireShopPermission } from "../../shared/permissions.js";
 import { AuthError } from "../auth/auth.service.js";
-import { CatalogError, createProduct, createVariant, getProduct, listProducts, updateProduct, updateVariant } from "./catalog.service.js";
-import { createProductSchema, createVariantSchema, productParamsSchema, shopParamsSchema, updateProductSchema, updateVariantSchema, variantParamsSchema } from "./catalog.validators.js";
+import { CatalogError, createProduct, createVariant, exportProductsCsv, getProduct, importVariants, listProducts, updateProduct, updateVariant } from "./catalog.service.js";
+import { createProductSchema, createVariantSchema, exportQuerySchema, importVariantsSchema, productParamsSchema, shopParamsSchema, updateProductSchema, updateVariantSchema, variantParamsSchema } from "./catalog.validators.js";
 
 function parse<T extends ZodTypeAny>(schema: T, value: unknown) {
   return schema.parse(value) as T["_output"];
@@ -81,6 +81,31 @@ export async function registerCatalogRoutes(app: FastifyInstance) {
       const body = parse(updateVariantSchema, request.body);
       const session = await requireShopPermission(request, params.shopId, "catalog:write");
       return updateVariant(params.shopId, params.productId, params.variantId, body, session.user.id as string);
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.post("/shops/:shopId/variants/import", async (request, reply) => {
+    try {
+      const params = parse(shopParamsSchema, request.params);
+      const body = parse(importVariantsSchema, request.body);
+      const session = await requireShopPermission(request, params.shopId, "catalog:write");
+      return reply.code(201).send(await importVariants(params.shopId, body.items, session.user.id as string));
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.get("/shops/:shopId/products/export", async (request, reply) => {
+    try {
+      const params = parse(shopParamsSchema, request.params);
+      parse(exportQuerySchema, request.query);
+      await requireShopPermission(request, params.shopId, "catalog:read");
+      const result = await exportProductsCsv(params.shopId);
+      return reply.header("Content-Type", "text/csv; charset=utf-8").header("Content-Disposition", "attachment; filename=products.csv").send(result.csv);
     } catch (error) {
       const result = handleError(error);
       return reply.code(result.statusCode).send(result.body);

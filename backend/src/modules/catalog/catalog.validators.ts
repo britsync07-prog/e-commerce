@@ -45,3 +45,17 @@ export const updateVariantSchema = z.object({
   price: z.coerce.number().min(0).optional(),
   status: z.enum(["active", "archived"]).optional()
 });
+
+export const importVariantsSchema = z.object({
+  items: z.array(z.object({
+    productId: z.string().uuid(),
+    title: z.string().trim().min(1).max(120),
+    sku: z.string().trim().min(1).max(80).optional(),
+    price: z.coerce.number().min(0),
+    openingStock: z.coerce.number().int().min(0).default(0)
+  })).min(1).max(500)
+});
+
+export const exportQuerySchema = z.object({
+  format: z.literal("csv").default("csv")
+});
