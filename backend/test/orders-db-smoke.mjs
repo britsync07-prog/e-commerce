@@ -89,6 +89,21 @@ try {
   const stock = await client.query("select coalesce(sum(delta_quantity), 0)::int as quantity from inventory_ledger where variant_id = $1", [variantId]);
   assert.equal(Number(stock.rows[0].quantity), 2);
 
+  const concurrentPayload = (phone) => ({
+    subdomain: `order-smoke-${stamp}`,
+    customer: { name: "Concurrent Buyer", phone, address: "House 2, Road 3, Dhaka" },
+    items: [{ variantId, quantity: 2 }],
+    paymentMethod: "cod"
+  });
+  const concurrent = await Promise.all([
+    app.inject({ method: "POST", url: "/api/v1/orders/checkout", payload: concurrentPayload(`+88019${stamp.toString().slice(-8)}`) }),
+    app.inject({ method: "POST", url: "/api/v1/orders/checkout", payload: concurrentPayload(`+88016${stamp.toString().slice(-8)}`) })
+  ]);
+  assert.deepEqual(concurrent.map((response) => response.statusCode).sort((a, b) => a - b), [201, 409], concurrent.map((response) => response.body));
+
+  const depleted = await client.query("select coalesce(sum(delta_quantity), 0)::int as quantity from inventory_ledger where variant_id = $1", [variantId]);
+  assert.equal(Number(depleted.rows[0].quantity), 0);
+
   const tracked = await app.inject({
     method: "GET",
     url: `/api/v1/orders/track?orderId=${checkout.json().order.id}&phone=${encodeURIComponent(`+88017${stamp.toString().slice(-8)}`)}`
@@ -117,4 +132,3 @@ try {
   await client.end();
   await app.close();
 }
-

@@ -6,6 +6,7 @@ Purpose:
 - Accepts public storefront COD checkout.
 - Creates confirmed orders with product/price snapshots.
 - Reserves stock by writing negative inventory ledger rows.
+- Serializes stock reservation per variant inside the database transaction.
 - Lets buyer track only with order ID plus phone.
 
 Auth:
@@ -94,6 +95,8 @@ Errors:
 - `404 ORDER_NOT_FOUND`
 - `409 COD_NOT_ALLOWED`
 - `409 STOCK_UNAVAILABLE`
+
+Concurrency: simultaneous checkouts for the same final stock are serialized; one succeeds and the other receives `409 STOCK_UNAVAILABLE`.
 
 ## `GET /track`
 
