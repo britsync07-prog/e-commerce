@@ -31,6 +31,29 @@ export async function getJobStats(shopId: string) {
   };
 }
 
+export async function listWorkerHeartbeats() {
+  const result = await db.query(`
+    select worker_id, pid, status, started_at, last_seen_at, updated_at,
+      (last_seen_at >= now() - interval '90 seconds' and status = 'running') as healthy
+    from worker_heartbeats
+    order by last_seen_at desc
+  `);
+  return { workers: result.rows };
+}
+
+export async function recordWorkerHeartbeat(workerId: string, pid: number, status: "running" | "stopping" = "running") {
+  await db.query(
+    `insert into worker_heartbeats (worker_id, pid, status)
+     values ($1, $2, $3)
+     on conflict (worker_id) do update set
+       pid = excluded.pid,
+       status = excluded.status,
+       last_seen_at = now(),
+       updated_at = now()`,
+    [workerId, pid, status]
+  );
+}
+
 export async function retryDeadJob(shopId: string, jobId: string, reason: string, actorId: string) {
   const result = await db.query("update outbox_jobs set status = 'pending', attempts = 0, run_after = now(), last_error = null, dead_at = null, locked_at = null, locked_by = null, updated_at = now() where shop_id = $1 and id = $2 and status = 'dead' returning id, status, attempts, run_after", [shopId, jobId]);
   if (!result.rowCount) throw new JobsError("Only dead jobs can be retried.", 409, "JOB_NOT_RETRYABLE");

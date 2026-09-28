@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { buildApp } from "../dist/app.js";
+import { recordWorkerHeartbeat } from "../dist/modules/jobs/jobs.service.js";
 
 if (!process.env.DATABASE_URL) { console.log("Skipping jobs DB smoke: DATABASE_URL is not set."); process.exit(0); }
 const app = await buildApp();
@@ -25,5 +26,11 @@ try {
   assert.equal(stats.json().byStatus.pending, 1);
   assert.equal(stats.json().byQueue.analytics, 1);
   assert.ok(stats.json().oldestPendingRunAfter);
+  const workerId = `worker-smoke-${stamp}`;
+  await recordWorkerHeartbeat(workerId, process.pid);
+  const workers = await app.inject({ method: "GET", url: `/api/v1/jobs/shops/${shopId}/workers`, headers: { authorization: `Bearer ${token}` } });
+  assert.equal(workers.statusCode, 200, workers.body);
+  const worker = workers.json().workers.find((item) => item.worker_id === workerId);
+  assert.equal(worker.healthy, true);
   console.log("Jobs DB smoke passed.");
 } finally { await app.close(); }

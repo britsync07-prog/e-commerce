@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { ZodError, type ZodTypeAny } from "zod";
 import { AuthError } from "../auth/auth.service.js";
 import { PermissionError, requireShopPermission } from "../../shared/permissions.js";
-import { enqueueJob, getJobStats, JobsError, listJobs, retryDeadJob } from "./jobs.service.js";
+import { enqueueJob, getJobStats, JobsError, listJobs, listWorkerHeartbeats, retryDeadJob } from "./jobs.service.js";
 import { enqueueSchema, jobParamsSchema, listQuerySchema, retrySchema, shopParamsSchema } from "./jobs.validators.js";
 
 function parse<T extends ZodTypeAny>(schema: T, value: unknown) { return schema.parse(value) as T["_output"]; }
@@ -23,6 +23,10 @@ export async function registerJobsRoutes(app: FastifyInstance) {
   });
   app.get("/shops/:shopId/jobs/stats", async (request, reply) => {
     try { const params = parse(shopParamsSchema, request.params); await requireShopPermission(request, params.shopId, "settings:read"); return getJobStats(params.shopId); }
+    catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
+  });
+  app.get("/shops/:shopId/workers", async (request, reply) => {
+    try { const params = parse(shopParamsSchema, request.params); await requireShopPermission(request, params.shopId, "settings:read"); return listWorkerHeartbeats(); }
     catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
   });
   app.post("/shops/:shopId/jobs/:jobId/retry", async (request, reply) => {
