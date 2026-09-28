@@ -45,7 +45,7 @@ export async function markOrderPaid(
   let paymentId = "";
   try {
     await client.query("begin");
-    const replay = idempotencyKey ? await reservePaymentIdempotency(client, shopId, orderId, idempotencyKey, input) : undefined;
+    const replay = idempotencyKey ? await reservePaymentIdempotency(client, shopId, `manual_payment:${orderId}`, idempotencyKey, input) : undefined;
     if (replay) {
       await client.query("rollback");
       return getPayment(shopId, replay.paymentId);
@@ -95,28 +95,15 @@ export async function markOrderPaid(
   return getPayment(shopId, paymentId);
 }
 
-async function reservePaymentIdempotency(client: import("pg").PoolClient, shopId: string, orderId: string, key: string, input: unknown) {
-  if (!key.trim() || key.length > 200) throw new PaymentError("Idempotency-Key must be 1-200 characters.", 400, "INVALID_IDEMPOTENCY_KEY");
-  const operation = `manual_payment:${orderId}`;
-  const hash = createHash("sha256").update(JSON.stringify(input)).digest("hex");
-  const inserted = await client.query(
-    `insert into api_idempotency_keys (shop_id, operation, idempotency_key, request_hash, status)
-     values ($1, $2, $3, $4, 'processing') on conflict (shop_id, operation, idempotency_key) do nothing returning id`,
-    [shopId, operation, key, hash]
-  );
-  if (inserted.rowCount) return undefined;
-  const existing = await client.query("select request_hash, status, response_body from api_idempotency_keys where shop_id = $1 and operation = $2 and idempotency_key = $3 for update", [shopId, operation, key]);
-  if (!existing.rowCount) throw new PaymentError("Idempotency key could not be reserved.", 409, "IDEMPOTENCY_RETRY");
-  if (existing.rows[0].request_hash !== hash) throw new PaymentError("Idempotency-Key was already used with a different request.", 409, "IDEMPOTENCY_KEY_REUSED");
-  const response = existing.rows[0].response_body as { paymentId?: string } | null;
-  if (existing.rows[0].status === "completed" && response?.paymentId) return response as { paymentId: string };
-  throw new PaymentError("Payment retry is already being processed.", 409, "IDEMPOTENCY_IN_PROGRESS");
-}
-
-export async function refundPayment(shopId: string, paymentId: string, input: { amount?: number; note: string }, actorId: string) {
+export async function refundPayment(shopId: string, paymentId: string, input: { amount?: number; note: string }, actorId: string, idempotencyKey?: string) {
   const client = await db.connect();
   try {
     await client.query("begin");
+    const replay = idempotencyKey ? await reservePaymentIdempotency(client, shopId, `refund:${paymentId}`, idempotencyKey, input) : undefined;
+    if (replay) {
+      await client.query("rollback");
+      return getPayment(shopId, replay.paymentId);
+    }
     const payment = await client.query("select id, order_id, status, amount from payment_records where shop_id = $1 and id = $2 for update", [shopId, paymentId]);
     if (!payment.rowCount) throw new PaymentError("Payment not found.", 404, "PAYMENT_NOT_FOUND");
     if (payment.rows[0].status !== "marked_paid") throw new PaymentError("Only marked-paid payments can be refunded.", 409, "PAYMENT_NOT_REFUNDABLE");
@@ -133,6 +120,12 @@ export async function refundPayment(shopId: string, paymentId: string, input: { 
       "insert into order_timeline (shop_id, order_id, status, actor_type, actor_id, note) values ($1, $2, 'payment_refunded', 'staff', $3, $4)",
       [shopId, payment.rows[0].order_id, actorId, input.note]
     );
+    if (idempotencyKey) {
+      await client.query(
+        "update api_idempotency_keys set status = 'completed', response_body = $4 where shop_id = $1 and operation = $2 and idempotency_key = $3",
+        [shopId, `refund:${paymentId}`, idempotencyKey, { paymentId }]
+      );
+    }
     await client.query("commit");
   } catch (error) {
     await client.query("rollback");
@@ -146,11 +139,16 @@ export async function refundPayment(shopId: string, paymentId: string, input: { 
 export async function createCodSettlement(shopId: string, input: {
   statementRef: string; courierName: string; statementDate: string; collectedAmount: number; fee: number; note?: string;
   rows: { externalRef: string; trackingNumber?: string; orderId?: string; amount: number }[];
-}, actorId: string) {
+}, actorId: string, idempotencyKey?: string) {
   const client = await db.connect();
   let settlementId = "";
   try {
     await client.query("begin");
+    const replay = idempotencyKey ? await reservePaymentIdempotency(client, shopId, `cod_settlement:${input.statementRef}`, idempotencyKey, input) : undefined;
+    if (replay) {
+      await client.query("rollback");
+      return getCodSettlement(shopId, replay.paymentId);
+    }
     const settlement = await client.query(
       `insert into cod_settlements (shop_id, statement_ref, courier_name, statement_date, collected_amount, fee, note, created_by)
        values ($1, $2, $3, $4, $5, $6, $7, $8) returning id`,
@@ -178,6 +176,12 @@ export async function createCodSettlement(shopId: string, input: {
     const status = unmatched ? "issue" : "matched";
     await client.query("update cod_settlements set status = $3 where shop_id = $1 and id = $2", [shopId, settlementId, status]);
     await writeAudit(client, shopId, actorId, "payment.cod_settlement_imported", "cod_settlement", settlementId, { rowCount: input.rows.length, unmatched, status });
+    if (idempotencyKey) {
+      await client.query(
+        "update api_idempotency_keys set status = 'completed', response_body = $4 where shop_id = $1 and operation = $2 and idempotency_key = $3",
+        [shopId, `cod_settlement:${input.statementRef}`, idempotencyKey, { paymentId: settlementId }]
+      );
+    }
     await client.query("commit");
   } catch (error) {
     await client.query("rollback");
@@ -210,4 +214,21 @@ async function writeAudit(client: { query: (sql: string, values?: unknown[]) => 
     "insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'staff', $2, $3, $4, $5, $6)",
     [shopId, actorId, action, targetType, targetId, JSON.stringify(metadata)]
   );
+}
+
+async function reservePaymentIdempotency(client: import("pg").PoolClient, shopId: string, operation: string, key: string, input: unknown) {
+  if (!key.trim() || key.length > 200) throw new PaymentError("Idempotency-Key must be 1-200 characters.", 400, "INVALID_IDEMPOTENCY_KEY");
+  const hash = createHash("sha256").update(JSON.stringify(input)).digest("hex");
+  const inserted = await client.query(
+    `insert into api_idempotency_keys (shop_id, operation, idempotency_key, request_hash, status)
+     values ($1, $2, $3, $4, 'processing') on conflict (shop_id, operation, idempotency_key) do nothing returning id`,
+    [shopId, operation, key, hash]
+  );
+  if (inserted.rowCount) return undefined;
+  const existing = await client.query("select request_hash, status, response_body from api_idempotency_keys where shop_id = $1 and operation = $2 and idempotency_key = $3 for update", [shopId, operation, key]);
+  if (!existing.rowCount) throw new PaymentError("Idempotency key could not be reserved.", 409, "IDEMPOTENCY_RETRY");
+  if (existing.rows[0].request_hash !== hash) throw new PaymentError("Idempotency-Key was already used with a different request.", 409, "IDEMPOTENCY_KEY_REUSED");
+  const response = existing.rows[0].response_body as { paymentId?: string } | null;
+  if (existing.rows[0].status === "completed" && response?.paymentId) return response as { paymentId: string };
+  throw new PaymentError("Payment retry is already being processed.", 409, "IDEMPOTENCY_IN_PROGRESS");
 }

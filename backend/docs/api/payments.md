@@ -50,6 +50,8 @@ Errors: `ORDER_NOT_FOUND`, `ORDER_NOT_PAYABLE`, `PAYMENT_EXCEEDS_TOTAL`, `PROOF_
 
 ## `POST /shops/:shopId/payments/:paymentId/refund`
 
+Optional header: `Idempotency-Key: refund-unique-key`. Repeating the same key returns the original refund result.
+
 Request: Path `shopId` and `paymentId` UUIDs. JSON body `{ "note": "Customer cancellation" }` or `{ "amount": 500, "note": "Customer cancellation" }`. Full refunds only; `note` is required.
 
 Response: `{ "payment": { "status": "refunded", ... }, "events": [...] }`.
@@ -60,7 +62,7 @@ Audit/timeline: Writes `payment.refunded` audit and `payment_refunded` order tim
 
 Cache: No cache. Client must refetch after success.
 
-Errors: `PAYMENT_NOT_FOUND`, `PAYMENT_NOT_REFUNDABLE`, `REFUND_EXCEEDS_PAYMENT`, `PARTIAL_REFUND_UNSUPPORTED`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
+Errors: `PAYMENT_NOT_FOUND`, `PAYMENT_NOT_REFUNDABLE`, `REFUND_EXCEEDS_PAYMENT`, `PARTIAL_REFUND_UNSUPPORTED`, `IDEMPOTENCY_IN_PROGRESS`, `IDEMPOTENCY_KEY_REUSED`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
 
 ## `GET /shops/:shopId/cod-settlements`
 
@@ -81,6 +83,8 @@ Cache: No server cache; refetch after import.
 Errors: `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
 
 ## `POST /shops/:shopId/cod-settlements`
+
+Optional header: `Idempotency-Key: settlement-unique-key`. Repeating the same key returns the original settlement result.
 
 Purpose: Import a courier cash statement and match each row by shop-scoped `orderId` or shipment `trackingNumber`.
 

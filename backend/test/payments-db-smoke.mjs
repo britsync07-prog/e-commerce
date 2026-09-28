@@ -37,17 +37,26 @@ try {
   const listed = await app.inject({ method: "GET", url: `/api/v1/payments/shops/${shopId}/payments`, headers: { authorization: `Bearer ${token}` } });
   assert.equal(listed.statusCode, 200, listed.body);
   const paymentId = listed.json().payments[0].id;
-  const refunded = await app.inject({ method: "POST", url: `/api/v1/payments/shops/${shopId}/payments/${paymentId}/refund`, headers: { authorization: `Bearer ${token}` }, payload: { note: "Buyer cancelled" } });
+  const refunded = await app.inject({ method: "POST", url: `/api/v1/payments/shops/${shopId}/payments/${paymentId}/refund`, headers: { authorization: `Bearer ${token}`, "idempotency-key": `refund-${stamp}` }, payload: { note: "Buyer cancelled" } });
   assert.equal(refunded.statusCode, 200, refunded.body);
   assert.equal(refunded.json().payment.status, "refunded");
   assert.equal(refunded.json().events.length, 3);
-  const settlement = await app.inject({ method: "POST", url: `/api/v1/payments/shops/${shopId}/cod-settlements`, headers: { authorization: `Bearer ${token}` }, payload: {
+  const refundReplay = await app.inject({ method: "POST", url: `/api/v1/payments/shops/${shopId}/payments/${paymentId}/refund`, headers: { authorization: `Bearer ${token}`, "idempotency-key": `refund-${stamp}` }, payload: { note: "Buyer cancelled" } });
+  assert.equal(refundReplay.statusCode, 200, refundReplay.body);
+  assert.equal(refundReplay.json().payment.id, refunded.json().payment.id);
+  const settlement = await app.inject({ method: "POST", url: `/api/v1/payments/shops/${shopId}/cod-settlements`, headers: { authorization: `Bearer ${token}`, "idempotency-key": `settlement-${stamp}` }, payload: {
     statementRef: `statement-${stamp}`, courierName: "Test Courier", statementDate: "2026-09-28", collectedAmount: 500,
     rows: [{ externalRef: "matched-row", orderId, amount: 500 }, { externalRef: "unknown-row", amount: 100 }]
   } });
   assert.equal(settlement.statusCode, 201, settlement.body);
   assert.equal(settlement.json().settlement.status, "issue");
   assert.equal(settlement.json().rows.filter((row) => row.status === "unmatched").length, 1);
+  const settlementReplay = await app.inject({ method: "POST", url: `/api/v1/payments/shops/${shopId}/cod-settlements`, headers: { authorization: `Bearer ${token}`, "idempotency-key": `settlement-${stamp}` }, payload: {
+    statementRef: `statement-${stamp}`, courierName: "Test Courier", statementDate: "2026-09-28", collectedAmount: 500, fee: 20,
+    rows: [{ externalRef: "matched-row", orderId, amount: 500 }, { externalRef: "unknown-row", amount: 100 }]
+  } });
+  assert.equal(settlementReplay.statusCode, 201, settlementReplay.body);
+  assert.equal(settlementReplay.json().settlement.id, settlement.json().settlement.id);
   const settlements = await app.inject({ method: "GET", url: `/api/v1/payments/shops/${shopId}/cod-settlements`, headers: { authorization: `Bearer ${token}` } });
   assert.equal(settlements.statusCode, 200, settlements.body);
   assert.equal(settlements.json().settlements[0].unmatched_count, 1);

@@ -18,7 +18,7 @@ export async function registerPaymentRoutes(app: FastifyInstance) {
     catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
   });
   app.post("/shops/:shopId/cod-settlements", async (request, reply) => {
-    try { const params = parse(shopParamsSchema, request.params); const body = parse(createSettlementSchema, request.body); const session = await requireShopPermission(request, params.shopId, "payments:write"); return reply.code(201).send(await createCodSettlement(params.shopId, body, session.user.id as string)); }
+    try { const params = parse(shopParamsSchema, request.params); const body = parse(createSettlementSchema, request.body); const session = await requireShopPermission(request, params.shopId, "payments:write"); const key = request.headers["idempotency-key"]; return reply.code(201).send(await createCodSettlement(params.shopId, body, session.user.id as string, typeof key === "string" ? key : undefined)); }
     catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
   });
   app.get("/shops/:shopId/cod-settlements/:settlementId", async (request, reply) => {
@@ -38,7 +38,7 @@ export async function registerPaymentRoutes(app: FastifyInstance) {
     catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
   });
   app.post("/shops/:shopId/payments/:paymentId/refund", async (request, reply) => {
-    try { const params = parse(paymentParamsSchema, request.params); const body = parse(refundSchema, request.body); const session = await requireShopPermission(request, params.shopId, "payments:write"); return refundPayment(params.shopId, params.paymentId, body, session.user.id as string); }
+    try { const params = parse(paymentParamsSchema, request.params); const body = parse(refundSchema, request.body); const session = await requireShopPermission(request, params.shopId, "payments:write"); const key = request.headers["idempotency-key"]; return refundPayment(params.shopId, params.paymentId, body, session.user.id as string, typeof key === "string" ? key : undefined); }
     catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
   });
 }
