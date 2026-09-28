@@ -37,8 +37,11 @@ try {
     "insert into outbox_jobs (shop_id, queue, job_type, payload, status, attempts, max_attempts, locked_at, locked_by) values ($1, 'analytics', 'analytics.rebuild', '{}', 'running', 1, 3, now() - interval '10 minutes', 'dead-worker') returning id",
     [shopId]
   );
-  const recovered = await claimNextJob(`recovery-smoke-${stamp}`);
-  assert.equal(recovered.id, stale.rows[0].id);
-  assert.equal(recovered.attempts, 2);
+  await claimNextJob(`recovery-smoke-${stamp}`);
+  const recovered = await db.query("select status, locked_at, locked_by, last_error from outbox_jobs where id = $1", [stale.rows[0].id]);
+  assert.equal(recovered.rows[0].status, "failed");
+  assert.equal(recovered.rows[0].locked_at, null);
+  assert.equal(recovered.rows[0].locked_by, null);
+  assert.match(recovered.rows[0].last_error, /^STALE_LOCK:/);
   console.log("Jobs DB smoke passed.");
 } finally { await app.close(); }
