@@ -26,6 +26,12 @@ const updateTeamMemberSchema = z.object({
   status: z.enum(staffStatuses).optional()
 });
 
+const transferOwnerSchema = z.object({
+  targetUserId: z.string().uuid(),
+  confirmation: z.literal("TRANSFER_OWNERSHIP"),
+  reason: z.string().trim().min(3).max(500)
+});
+
 const updateSettingsSchema = z.object({
   displayName: z.string().trim().min(2).max(120).optional(),
   legalName: z.string().trim().max(160).nullable().optional(),
@@ -189,6 +195,34 @@ export async function registerShopRoutes(app: FastifyInstance) {
     } catch (error) {
       const result = handleError(error);
       return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.post("/:shopId/team/transfer-owner", async (request, reply) => {
+    const client = await db.connect();
+    try {
+      const params = parse(shopParamsSchema, request.params);
+      const body = parse(transferOwnerSchema, request.body);
+      const session = await requireShopPermission(request, params.shopId, "team:write");
+      if (session.role !== "owner") throw new ShopError("Only the current owner can transfer ownership.", 403, "OWNER_TRANSFER_REQUIRED");
+      if (body.targetUserId === session.user.id) throw new ShopError("The target must be another active team member.", 409, "OWNER_TRANSFER_TARGET_INVALID");
+
+      await client.query("begin");
+      const target = await client.query("select ss.user_id, u.name, u.email from shop_staff ss join users u on u.id = ss.user_id where ss.shop_id = $1 and ss.user_id = $2 and ss.status = 'active'", [params.shopId, body.targetUserId]);
+      if (!target.rowCount) throw new ShopError("Target must be an active team member.", 409, "OWNER_TRANSFER_TARGET_INVALID");
+      const currentOwner = await client.query("select user_id from shop_staff where shop_id = $1 and role = 'owner' and status = 'active' for update", [params.shopId]);
+      if (!currentOwner.rowCount || currentOwner.rows[0].user_id !== session.user.id) throw new ShopError("Current owner could not be verified.", 409, "OWNER_TRANSFER_REQUIRED");
+      await client.query("update shop_staff set role = 'admin' where shop_id = $1 and user_id = $2", [params.shopId, session.user.id]);
+      await client.query("update shop_staff set role = 'owner' where shop_id = $1 and user_id = $2", [params.shopId, body.targetUserId]);
+      await client.query("insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'staff', $2, 'shop.owner_transferred', 'user', $3, $4)", [params.shopId, session.user.id, body.targetUserId, JSON.stringify({ previousOwnerId: session.user.id, reason: body.reason })]);
+      await client.query("commit");
+      return { previousOwnerId: session.user.id, owner: { userId: target.rows[0].user_id, name: target.rows[0].name, email: target.rows[0].email } };
+    } catch (error) {
+      await client.query("rollback").catch(() => undefined);
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    } finally {
+      client.release();
     }
   });
 

@@ -273,6 +273,24 @@ Errors:
 - `409 OWNER_SELF_REMOVE_BLOCKED`
 - `409 OWNER_TRANSFER_REQUIRED`
 
+## `POST /:shopId/team/transfer-owner`
+
+Purpose: Transfer shop ownership to another active team member through an explicit confirmation flow.
+
+Auth/permission: Bearer token required; only the current owner may transfer ownership.
+
+Request: `{ "targetUserId": "uuid", "confirmation": "TRANSFER_OWNERSHIP", "reason": "Owner is leaving the business" }`.
+
+Response: Returns the previous owner id and the new owner summary.
+
+Side effects: Atomically changes the current owner to `admin`, changes the target to `owner`, and preserves both team memberships.
+
+Audit/timeline: Writes immutable `shop.owner_transferred` audit metadata with actor, target, and reason.
+
+Cache: Invalidate team and permission reads for every team member.
+
+Errors: `400 VALIDATION_ERROR`, `403 OWNER_TRANSFER_REQUIRED`, `403 SHOP_ACCESS_DENIED`, `403 PERMISSION_DENIED`, `409 OWNER_TRANSFER_TARGET_INVALID`.
+
 ## `GET /:shopId/settings`
 
 Purpose:

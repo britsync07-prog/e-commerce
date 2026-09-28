@@ -140,6 +140,21 @@ try {
   assert.ok(audit.json().audit.some((event) => event.action === "shop.settings_updated"));
   assert.ok(audit.json().audit.some((event) => event.action === "shop.team_member_updated"));
 
+  const transferEmail = `transfer-target-${stamp}@example.com`;
+  const transferRegistered = await app.inject({ method: "POST", url: "/api/v1/auth/register", payload: { name: "Transfer Target", email: transferEmail, password: "strong-password-123", language: "en" } });
+  assert.equal(transferRegistered.statusCode, 201, transferRegistered.body);
+  const transferUserId = transferRegistered.json().user.id;
+  const addedTransferTarget = await app.inject({ method: "POST", url: `/api/v1/shops/${shopId}/team`, headers: { authorization: `Bearer ${ownerToken}` }, payload: { email: transferEmail, role: "sales" } });
+  assert.equal(addedTransferTarget.statusCode, 201, addedTransferTarget.body);
+  const missingConfirmation = await app.inject({ method: "POST", url: `/api/v1/shops/${shopId}/team/transfer-owner`, headers: { authorization: `Bearer ${ownerToken}` }, payload: { targetUserId: transferUserId, reason: "Transfer smoke" } });
+  assert.equal(missingConfirmation.statusCode, 400, missingConfirmation.body);
+  const transferred = await app.inject({ method: "POST", url: `/api/v1/shops/${shopId}/team/transfer-owner`, headers: { authorization: `Bearer ${ownerToken}` }, payload: { targetUserId: transferUserId, confirmation: "TRANSFER_OWNERSHIP", reason: "Transfer smoke" } });
+  assert.equal(transferred.statusCode, 200, transferred.body);
+  assert.equal(transferred.json().owner.userId, transferUserId);
+  const transferredTeam = await app.inject({ method: "GET", url: `/api/v1/shops/${shopId}/team`, headers: { authorization: `Bearer ${ownerToken}` } });
+  assert.equal(transferredTeam.statusCode, 200, transferredTeam.body);
+  assert.equal(transferredTeam.json().team.find((member) => member.user_id === transferUserId).role, "owner");
+
   console.log("Team/settings DB smoke passed.");
 } finally {
   await client.end();
