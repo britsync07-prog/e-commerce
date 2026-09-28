@@ -45,7 +45,7 @@ try {
   assert.equal(refundReplay.statusCode, 200, refundReplay.body);
   assert.equal(refundReplay.json().payment.id, refunded.json().payment.id);
   const settlement = await app.inject({ method: "POST", url: `/api/v1/payments/shops/${shopId}/cod-settlements`, headers: { authorization: `Bearer ${token}`, "idempotency-key": `settlement-${stamp}` }, payload: {
-    statementRef: `statement-${stamp}`, courierName: "Test Courier", statementDate: "2026-09-28", collectedAmount: 500,
+    statementRef: `statement-${stamp}`, courierName: "Test Courier", statementDate: "2026-09-28", collectedAmount: 500, fee: 20,
     rows: [{ externalRef: "matched-row", orderId, amount: 500 }, { externalRef: "unknown-row", amount: 100 }]
   } });
   assert.equal(settlement.statusCode, 201, settlement.body);
