@@ -51,6 +51,7 @@ try {
   assert.equal(settlement.statusCode, 201, settlement.body);
   assert.equal(settlement.json().settlement.status, "issue");
   assert.equal(settlement.json().rows.filter((row) => row.status === "unmatched").length, 1);
+  assert.equal(settlement.json().reconciliation.difference, -100);
   const settlementReplay = await app.inject({ method: "POST", url: `/api/v1/payments/shops/${shopId}/cod-settlements`, headers: { authorization: `Bearer ${token}`, "idempotency-key": `settlement-${stamp}` }, payload: {
     statementRef: `statement-${stamp}`, courierName: "Test Courier", statementDate: "2026-09-28", collectedAmount: 500, fee: 20,
     rows: [{ externalRef: "matched-row", orderId, amount: 500 }, { externalRef: "unknown-row", amount: 100 }]

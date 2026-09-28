@@ -156,16 +156,27 @@ export async function createCodSettlement(shopId: string, input: {
     );
     settlementId = settlement.rows[0].id;
     let unmatched = 0;
+    let rowAmountTotal = 0;
     for (const row of input.rows) {
+      rowAmountTotal += row.amount;
       let orderId: string | null = null;
+      let expectedAmount: number | null = null;
       if (row.orderId) {
-        const order = await client.query("select id from orders where shop_id = $1 and id = $2", [shopId, row.orderId]);
-        if (order.rowCount) orderId = order.rows[0].id;
+        const order = await client.query("select id, total from orders where shop_id = $1 and id = $2", [shopId, row.orderId]);
+        if (order.rowCount) {
+          orderId = order.rows[0].id;
+          expectedAmount = Number(order.rows[0].total);
+        }
       } else if (row.trackingNumber) {
         const shipment = await client.query("select order_id from shipments where shop_id = $1 and tracking_number = $2 order by created_at desc limit 1", [shopId, row.trackingNumber]);
-        if (shipment.rowCount) orderId = shipment.rows[0].order_id;
+        if (shipment.rowCount) {
+          orderId = shipment.rows[0].order_id;
+          const order = await client.query("select total from orders where shop_id = $1 and id = $2", [shopId, orderId]);
+          expectedAmount = order.rowCount ? Number(order.rows[0].total) : null;
+        }
       }
-      const issue = orderId ? null : "ORDER_NOT_MATCHED";
+      let issue = orderId ? null : "ORDER_NOT_MATCHED";
+      if (orderId && expectedAmount !== null && Math.abs(row.amount - expectedAmount) > 0.01) issue = "AMOUNT_MISMATCH";
       if (issue) unmatched += 1;
       await client.query(
         `insert into cod_settlement_rows (shop_id, settlement_id, external_ref, tracking_number, order_id, amount, status, issue)
@@ -173,9 +184,10 @@ export async function createCodSettlement(shopId: string, input: {
         [shopId, settlementId, row.externalRef, row.trackingNumber ?? null, orderId, row.amount, orderId ? "matched" : "unmatched", issue]
       );
     }
-    const status = unmatched ? "issue" : "matched";
+    const difference = Number((input.collectedAmount - rowAmountTotal).toFixed(2));
+    const status = unmatched || Math.abs(difference) > 0.01 ? "issue" : "matched";
     await client.query("update cod_settlements set status = $3 where shop_id = $1 and id = $2", [shopId, settlementId, status]);
-    await writeAudit(client, shopId, actorId, "payment.cod_settlement_imported", "cod_settlement", settlementId, { rowCount: input.rows.length, unmatched, status });
+    await writeAudit(client, shopId, actorId, "payment.cod_settlement_imported", "cod_settlement", settlementId, { rowCount: input.rows.length, unmatched, rowAmountTotal, collectedAmount: input.collectedAmount, difference, status });
     if (idempotencyKey) {
       await client.query(
         "update api_idempotency_keys set status = 'completed', response_body = $4 where shop_id = $1 and operation = $2 and idempotency_key = $3",
@@ -185,7 +197,7 @@ export async function createCodSettlement(shopId: string, input: {
     await client.query("commit");
   } catch (error) {
     await client.query("rollback");
-    if ((error as { code?: string }).code === "23505") throw new PaymentError("Statement reference already exists for this shop.", 409, "SETTLEMENT_CONFLICT");
+    if ((error as { code?: string }).code === "23505") throw new PaymentError("Statement reference or external row reference already exists for this shop.", 409, "SETTLEMENT_CONFLICT");
     throw error;
   } finally { client.release(); }
   return getCodSettlement(shopId, settlementId);
@@ -206,7 +218,19 @@ export async function getCodSettlement(shopId: string, settlementId: string) {
   const settlement = await db.query("select id, shop_id, statement_ref, courier_name, statement_date, collected_amount, fee, status, note, created_at from cod_settlements where shop_id = $1 and id = $2", [shopId, settlementId]);
   if (!settlement.rowCount) throw new PaymentError("COD settlement not found.", 404, "SETTLEMENT_NOT_FOUND");
   const rows = await db.query("select id, external_ref, tracking_number, order_id, amount, status, issue, created_at from cod_settlement_rows where shop_id = $1 and settlement_id = $2 order by created_at asc", [shopId, settlementId]);
-  return { settlement: settlement.rows[0], rows: rows.rows };
+  const rowAmountTotal = rows.rows.reduce((total, row) => total + Number(row.amount), 0);
+  const collectedAmount = Number(settlement.rows[0].collected_amount);
+  return {
+    settlement: settlement.rows[0],
+    rows: rows.rows,
+    reconciliation: {
+      rowAmountTotal,
+      collectedAmount,
+      difference: Number((collectedAmount - rowAmountTotal).toFixed(2)),
+      matchedRows: rows.rows.filter((row) => row.status === "matched").length,
+      issueRows: rows.rows.filter((row) => row.status === "unmatched").length
+    }
+  };
 }
 
 async function writeAudit(client: { query: (sql: string, values?: unknown[]) => Promise<unknown> }, shopId: string, actorId: string, action: string, targetType: string, targetId: string, metadata: unknown) {

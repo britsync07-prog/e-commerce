@@ -92,9 +92,9 @@ Auth: Requires `payments:write`.
 
 Request: `{ "statementRef": "courier-001", "courierName": "Courier", "statementDate": "2026-09-28", "collectedAmount": 500, "fee": 20, "rows": [{ "externalRef": "row-1", "trackingNumber": "TRK-1", "amount": 500 }] }`.
 
-Response: `{ "settlement": { "status": "matched|issue", ... }, "rows": [{ "status": "matched|unmatched", "issue": "ORDER_NOT_MATCHED|null" }] }`.
+Response: `{ "settlement": { "status": "matched|issue", ... }, "rows": [{ "status": "matched|unmatched", "issue": "ORDER_NOT_MATCHED|AMOUNT_MISMATCH|null" }], "reconciliation": { "rowAmountTotal": 500, "collectedAmount": 500, "difference": 0 } }`.
 
-Side effects: Creates a settlement statement and rows. Every unmatched row is retained with an explicit issue; the settlement status becomes `issue` until reviewed. Duplicate statement references are rejected.
+Side effects: Creates a settlement statement and rows. Every unmatched or amount-mismatched row is retained with an explicit issue; the settlement status becomes `issue` when row totals differ from collected amount. Duplicate statement or external row references are rejected.
 
 Audit/timeline: Writes `payment.cod_settlement_imported` audit metadata with row and unmatched counts. Import does not change order payment status.
 
