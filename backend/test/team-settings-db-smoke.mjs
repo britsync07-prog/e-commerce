@@ -155,6 +155,10 @@ try {
   assert.equal(transferredTeam.statusCode, 200, transferredTeam.body);
   assert.equal(transferredTeam.json().team.find((member) => member.user_id === transferUserId).role, "owner");
 
+  const auditRow = await client.query("select id from audit_events where shop_id = $1 order by created_at desc limit 1", [shopId]);
+  await assert.rejects(client.query("update audit_events set metadata = metadata where id = $1", [auditRow.rows[0].id]), /append-only/);
+  await assert.rejects(client.query("delete from audit_events where id = $1", [auditRow.rows[0].id]), /append-only/);
+
   console.log("Team/settings DB smoke passed.");
 } finally {
   await client.end();
