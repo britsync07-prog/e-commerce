@@ -1,6 +1,7 @@
 import { db } from "../../shared/db.js";
 import type pg from "pg";
 import { lockInventoryVariants } from "../../shared/inventory-lock.js";
+import { createHash } from "node:crypto";
 
 type OrderStatus = "new" | "confirmed" | "packed" | "shipped" | "delivered" | "cancelled" | "returned";
 
@@ -31,13 +32,18 @@ export async function submitCheckout(input: {
   couponCode?: string;
   attribution?: { source: string; campaignId?: string; data?: Record<string, unknown> };
   paymentMethod: "cod";
-}) {
+}, idempotencyKey?: string) {
   const client = await db.connect();
   try {
     await client.query("begin");
     const shop = await client.query("select id, currency, policy_defaults from shops where subdomain = $1 and status = 'launched'", [input.subdomain]);
     if (!shop.rowCount) throw new OrderError("Published shop not found.", 404, "SHOP_NOT_FOUND");
     const shopId = shop.rows[0].id as string;
+    const replay = idempotencyKey ? await reserveCheckoutIdempotency(client, shopId, idempotencyKey, input) : undefined;
+    if (replay) {
+      await client.query("rollback");
+      return getOrderForBuyer(replay.orderId, replay.phone);
+    }
     const currency = shop.rows[0].currency as string;
     const policy = shop.rows[0].policy_defaults as { deliveryCharge?: number; codAllowed?: boolean };
     if (policy.codAllowed === false) throw new OrderError("COD is not available for this shop.", 409, "COD_NOT_ALLOWED");
@@ -157,6 +163,12 @@ export async function submitCheckout(input: {
       "insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'buyer', $2, 'order.confirmed', 'order', $3, $4)",
       [shopId, input.customer.phone, order.rows[0].id, { source: "storefront", itemCount: preparedItems.length }]
     );
+    if (idempotencyKey) {
+      await client.query(
+        "update api_idempotency_keys set status = 'completed', response_body = $4 where shop_id = $1 and operation = 'checkout' and idempotency_key = $2 and request_hash = $3",
+        [shopId, idempotencyKey, checkoutRequestHash(input), { orderId: order.rows[0].id, phone: input.customer.phone }]
+      );
+    }
 
     await client.query("commit");
     return getOrderForBuyer(order.rows[0].id, input.customer.phone);
@@ -166,6 +178,32 @@ export async function submitCheckout(input: {
   } finally {
     client.release();
   }
+}
+
+async function reserveCheckoutIdempotency(client: pg.PoolClient, shopId: string, key: string, input: unknown) {
+  if (!key.trim() || key.length > 200) throw new OrderError("Idempotency-Key must be 1-200 characters.", 400, "INVALID_IDEMPOTENCY_KEY");
+  const hash = checkoutRequestHash(input);
+  const inserted = await client.query(
+    `insert into api_idempotency_keys (shop_id, operation, idempotency_key, request_hash, status)
+     values ($1, 'checkout', $2, $3, 'processing')
+     on conflict (shop_id, operation, idempotency_key) do nothing
+     returning id`,
+    [shopId, key, hash]
+  );
+  if (inserted.rowCount) return undefined;
+  const existing = await client.query(
+    "select request_hash, status, response_body from api_idempotency_keys where shop_id = $1 and operation = 'checkout' and idempotency_key = $2 for update",
+    [shopId, key]
+  );
+  if (!existing.rowCount) throw new OrderError("Idempotency key could not be reserved.", 409, "IDEMPOTENCY_RETRY");
+  if (existing.rows[0].request_hash !== hash) throw new OrderError("Idempotency-Key was already used with a different request.", 409, "IDEMPOTENCY_KEY_REUSED");
+  const response = existing.rows[0].response_body as { orderId?: string; phone?: string } | null;
+  if (existing.rows[0].status === "completed" && response?.orderId && response.phone) return response as { orderId: string; phone: string };
+  throw new OrderError("Checkout retry is already being processed.", 409, "IDEMPOTENCY_IN_PROGRESS");
+}
+
+function checkoutRequestHash(input: unknown) {
+  return createHash("sha256").update(JSON.stringify(input)).digest("hex");
 }
 
 export async function getOrderForBuyer(orderId: string, phone: string) {

@@ -70,6 +70,7 @@ try {
   const checkout = await app.inject({
     method: "POST",
     url: "/api/v1/orders/checkout",
+    headers: { "idempotency-key": `checkout-${stamp}` },
     payload: {
       subdomain: `order-smoke-${stamp}`,
       customer: {
@@ -85,6 +86,20 @@ try {
   assert.equal(checkout.statusCode, 201, checkout.body);
   assert.equal(checkout.json().order.status, "confirmed");
   assert.equal(Number(checkout.json().order.total), 1000);
+
+  const replay = await app.inject({
+    method: "POST",
+    url: "/api/v1/orders/checkout",
+    headers: { "idempotency-key": `checkout-${stamp}` },
+    payload: {
+      subdomain: `order-smoke-${stamp}`,
+      customer: { name: "Buyer One", phone: `+88017${stamp.toString().slice(-8)}`, address: "House 1, Road 2, Dhaka", city: "Dhaka" },
+      items: [{ variantId, quantity: 2 }],
+      paymentMethod: "cod"
+    }
+  });
+  assert.equal(replay.statusCode, 201, replay.body);
+  assert.equal(replay.json().order.id, checkout.json().order.id);
 
   const stock = await client.query("select coalesce(sum(delta_quantity), 0)::int as quantity from inventory_ledger where variant_id = $1", [variantId]);
   assert.equal(Number(stock.rows[0].quantity), 2);

@@ -43,7 +43,8 @@ export async function registerOrderRoutes(app: FastifyInstance) {
   app.post("/checkout", async (request, reply) => {
     try {
       const body = parse(checkoutSchema, request.body);
-      return reply.code(201).send(await submitCheckout(body));
+      const idempotencyKey = request.headers["idempotency-key"];
+      return reply.code(201).send(await submitCheckout(body, typeof idempotencyKey === "string" ? idempotencyKey : undefined));
     } catch (error) {
       const result = handleError(error);
       return reply.code(result.statusCode).send(result.body);

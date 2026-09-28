@@ -16,6 +16,8 @@ Auth:
 
 ## `POST /checkout`
 
+Optional header: `Idempotency-Key: checkout-unique-key`. Repeating the same key with the same request returns the original order. Reusing a key with a different request returns `409 IDEMPOTENCY_KEY_REUSED`.
+
 Request:
 
 ```json
@@ -95,6 +97,8 @@ Errors:
 - `404 ORDER_NOT_FOUND`
 - `409 COD_NOT_ALLOWED`
 - `409 STOCK_UNAVAILABLE`
+- `409 IDEMPOTENCY_IN_PROGRESS`
+- `409 IDEMPOTENCY_KEY_REUSED`
 
 Concurrency: simultaneous checkouts for the same final stock are serialized; one succeeds and the other receives `409 STOCK_UNAVAILABLE`.
 
