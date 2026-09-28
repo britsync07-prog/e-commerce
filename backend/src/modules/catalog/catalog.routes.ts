@@ -2,8 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { ZodError, type ZodTypeAny } from "zod";
 import { PermissionError, requireShopPermission } from "../../shared/permissions.js";
 import { AuthError } from "../auth/auth.service.js";
-import { CatalogError, createProduct, getProduct, listProducts } from "./catalog.service.js";
-import { createProductSchema, productParamsSchema, shopParamsSchema } from "./catalog.validators.js";
+import { CatalogError, createProduct, getProduct, listProducts, updateProduct } from "./catalog.service.js";
+import { createProductSchema, productParamsSchema, shopParamsSchema, updateProductSchema } from "./catalog.validators.js";
 
 function parse<T extends ZodTypeAny>(schema: T, value: unknown) {
   return schema.parse(value) as T["_output"];
@@ -45,6 +45,18 @@ export async function registerCatalogRoutes(app: FastifyInstance) {
       const params = parse(productParamsSchema, request.params);
       await requireShopPermission(request, params.shopId, "catalog:read");
       return getProduct(params.shopId, params.productId);
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.patch("/shops/:shopId/products/:productId", async (request, reply) => {
+    try {
+      const params = parse(productParamsSchema, request.params);
+      const body = parse(updateProductSchema, request.body);
+      const session = await requireShopPermission(request, params.shopId, "catalog:write");
+      return updateProduct(params.shopId, params.productId, body, session.user.id as string);
     } catch (error) {
       const result = handleError(error);
       return reply.code(result.statusCode).send(result.body);

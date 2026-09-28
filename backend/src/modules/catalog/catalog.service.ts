@@ -120,6 +120,39 @@ export async function getProduct(shopId: string, productId: string) {
   return { product: product.rows[0], variants: variants.rows };
 }
 
+export async function updateProduct(
+  shopId: string,
+  productId: string,
+  input: { name?: string; description?: string | null; status?: "draft" | "active" | "archived"; basePrice?: number; currency?: string },
+  actorId: string
+) {
+  const current = await db.query("select id, name, description, base_price, status from products where shop_id = $1 and id = $2", [shopId, productId]);
+  if (!current.rowCount) throw new CatalogError("Product not found.", 404, "PRODUCT_NOT_FOUND");
+  const name = input.name ?? current.rows[0].name;
+  const basePrice = input.basePrice ?? Number(current.rows[0].base_price);
+  const status = input.status ?? current.rows[0].status;
+  const description = input.description === undefined ? current.rows[0].description : input.description;
+  if (status === "active" && (!name.trim() || basePrice < 0)) {
+    throw new CatalogError("Active products require a name and non-negative price.", 400, "PRODUCT_PUBLISH_INVALID");
+  }
+
+  const updated = await db.query(
+    `
+      update products
+      set name = $3, description = $4, status = $5,
+        base_price = $6, currency = coalesce($7, currency), updated_at = now()
+      where shop_id = $1 and id = $2
+      returning id, shop_id, name, slug, description, status, base_price, currency, created_at, updated_at
+    `,
+    [shopId, productId, name, description, status, basePrice, input.currency?.toUpperCase() ?? null]
+  );
+  await db.query(
+    "insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'staff', $2, 'catalog.product_updated', 'product', $3, $4)",
+    [shopId, actorId, productId, input]
+  );
+  return { product: updated.rows[0] };
+}
+
 async function ensureShop(client: Pick<pg.Pool | pg.PoolClient, "query">, shopId: string) {
   const shop = await client.query("select id from shops where id = $1", [shopId]);
   if (!shop.rowCount) throw new CatalogError("Shop not found.", 404, "SHOP_NOT_FOUND");
@@ -155,4 +188,3 @@ async function writeAudit(client: pg.PoolClient, shopId: string, action: string,
 function isUniqueViolation(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
 }
-

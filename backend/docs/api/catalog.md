@@ -164,3 +164,15 @@ Errors:
 - `403 SHOP_ACCESS_DENIED`
 - `403 PERMISSION_DENIED`
 - `404 PRODUCT_NOT_FOUND`
+
+## `PATCH /shops/:shopId/products/:productId`
+
+Purpose: edit product fields and move a product between `draft`, `active`, and `archived`.
+
+Auth: Bearer session required; requires `catalog:write`.
+
+Request: any of `name`, `description`, `status`, `basePrice`, and `currency`. Publishing requires a non-empty name and non-negative price.
+
+Side effects: updates the tenant-scoped product and writes `catalog.product_updated` audit data. Existing order snapshots are unchanged.
+
+Errors: `400 VALIDATION_ERROR`, `400 PRODUCT_PUBLISH_INVALID`, `401 AUTH_REQUIRED`, `403 SHOP_ACCESS_DENIED`, `403 PERMISSION_DENIED`, `404 PRODUCT_NOT_FOUND`.

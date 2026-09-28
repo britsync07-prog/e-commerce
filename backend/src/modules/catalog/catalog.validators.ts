@@ -20,3 +20,10 @@ export const createProductSchema = z.object({
   openingStock: z.coerce.number().int().min(0).default(0)
 });
 
+export const updateProductSchema = z.object({
+  name: z.string().trim().min(2).max(140).optional(),
+  description: z.string().trim().max(5000).nullable().optional(),
+  status: z.enum(["draft", "active", "archived"]).optional(),
+  basePrice: z.coerce.number().min(0).optional(),
+  currency: z.string().trim().length(3).optional()
+});
