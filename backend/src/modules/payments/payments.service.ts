@@ -1,4 +1,5 @@
 import { db } from "../../shared/db.js";
+import { createHash } from "node:crypto";
 
 export class PaymentError extends Error {
   constructor(message: string, public readonly statusCode: number, public readonly code: string) {
@@ -37,12 +38,18 @@ export async function markOrderPaid(
   shopId: string,
   orderId: string,
   input: { method: "cod" | "advance" | "manual"; amount?: number; proofAssetId?: string; note: string },
-  actorId: string
+  actorId: string,
+  idempotencyKey?: string
 ) {
   const client = await db.connect();
   let paymentId = "";
   try {
     await client.query("begin");
+    const replay = idempotencyKey ? await reservePaymentIdempotency(client, shopId, orderId, idempotencyKey, input) : undefined;
+    if (replay) {
+      await client.query("rollback");
+      return getPayment(shopId, replay.paymentId);
+    }
     const order = await client.query("select id, total, currency, status from orders where shop_id = $1 and id = $2 for update", [shopId, orderId]);
     if (!order.rowCount) throw new PaymentError("Order not found.", 404, "ORDER_NOT_FOUND");
     if (["cancelled", "returned"].includes(order.rows[0].status)) throw new PaymentError("Cancelled or returned orders cannot be marked paid.", 409, "ORDER_NOT_PAYABLE");
@@ -72,6 +79,12 @@ export async function markOrderPaid(
       "insert into order_timeline (shop_id, order_id, status, actor_type, actor_id, note) values ($1, $2, 'payment_marked_paid', 'staff', $3, $4)",
       [shopId, orderId, actorId, input.note]
     );
+    if (idempotencyKey) {
+      await client.query(
+        "update api_idempotency_keys set status = 'completed', response_body = $4 where shop_id = $1 and operation = $2 and idempotency_key = $3",
+        [shopId, `manual_payment:${orderId}`, idempotencyKey, { paymentId }]
+      );
+    }
     await client.query("commit");
   } catch (error) {
     await client.query("rollback");
@@ -80,6 +93,24 @@ export async function markOrderPaid(
     client.release();
   }
   return getPayment(shopId, paymentId);
+}
+
+async function reservePaymentIdempotency(client: import("pg").PoolClient, shopId: string, orderId: string, key: string, input: unknown) {
+  if (!key.trim() || key.length > 200) throw new PaymentError("Idempotency-Key must be 1-200 characters.", 400, "INVALID_IDEMPOTENCY_KEY");
+  const operation = `manual_payment:${orderId}`;
+  const hash = createHash("sha256").update(JSON.stringify(input)).digest("hex");
+  const inserted = await client.query(
+    `insert into api_idempotency_keys (shop_id, operation, idempotency_key, request_hash, status)
+     values ($1, $2, $3, $4, 'processing') on conflict (shop_id, operation, idempotency_key) do nothing returning id`,
+    [shopId, operation, key, hash]
+  );
+  if (inserted.rowCount) return undefined;
+  const existing = await client.query("select request_hash, status, response_body from api_idempotency_keys where shop_id = $1 and operation = $2 and idempotency_key = $3 for update", [shopId, operation, key]);
+  if (!existing.rowCount) throw new PaymentError("Idempotency key could not be reserved.", 409, "IDEMPOTENCY_RETRY");
+  if (existing.rows[0].request_hash !== hash) throw new PaymentError("Idempotency-Key was already used with a different request.", 409, "IDEMPOTENCY_KEY_REUSED");
+  const response = existing.rows[0].response_body as { paymentId?: string } | null;
+  if (existing.rows[0].status === "completed" && response?.paymentId) return response as { paymentId: string };
+  throw new PaymentError("Payment retry is already being processed.", 409, "IDEMPOTENCY_IN_PROGRESS");
 }
 
 export async function refundPayment(shopId: string, paymentId: string, input: { amount?: number; note: string }, actorId: string) {

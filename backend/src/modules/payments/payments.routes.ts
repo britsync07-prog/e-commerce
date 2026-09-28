@@ -34,7 +34,7 @@ export async function registerPaymentRoutes(app: FastifyInstance) {
     catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
   });
   app.post("/shops/:shopId/orders/:orderId/payments/manual", async (request, reply) => {
-    try { const params = parse(orderPaymentParamsSchema, request.params); const body = parse(manualPaymentSchema, request.body); const session = await requireShopPermission(request, params.shopId, "payments:write"); return reply.code(201).send(await markOrderPaid(params.shopId, params.orderId, body, session.user.id as string)); }
+    try { const params = parse(orderPaymentParamsSchema, request.params); const body = parse(manualPaymentSchema, request.body); const session = await requireShopPermission(request, params.shopId, "payments:write"); const key = request.headers["idempotency-key"]; return reply.code(201).send(await markOrderPaid(params.shopId, params.orderId, body, session.user.id as string, typeof key === "string" ? key : undefined)); }
     catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
   });
   app.post("/shops/:shopId/payments/:paymentId/refund", async (request, reply) => {

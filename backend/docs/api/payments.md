@@ -34,6 +34,8 @@ Errors: `PAYMENT_NOT_FOUND`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDAT
 
 ## `POST /shops/:shopId/orders/:orderId/payments/manual`
 
+Optional header: `Idempotency-Key: payment-unique-key`. Repeating the same key with the same request returns the original payment record. Reusing it with a different request returns `409 IDEMPOTENCY_KEY_REUSED`.
+
 Request: Path `shopId` and `orderId` UUIDs. JSON body `{ "method": "cod|advance|manual", "amount": 500, "proofAssetId": "uuid", "note": "Cash received" }`. `note` is required; `amount` defaults to the order total. `proofAssetId` must be an asset owned by the same shop.
 
 Response: `{ "payment": { "status": "marked_paid", "amount": "500.00", ... }, "events": [...] }`.
@@ -44,7 +46,7 @@ Audit/timeline: Writes payment audit and `payment_marked_paid` order timeline ev
 
 Cache: No cache. Client must refetch order/payment reads after success.
 
-Errors: `ORDER_NOT_FOUND`, `ORDER_NOT_PAYABLE`, `PAYMENT_EXCEEDS_TOTAL`, `PROOF_ASSET_NOT_FOUND`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
+Errors: `ORDER_NOT_FOUND`, `ORDER_NOT_PAYABLE`, `PAYMENT_EXCEEDS_TOTAL`, `PROOF_ASSET_NOT_FOUND`, `IDEMPOTENCY_IN_PROGRESS`, `IDEMPOTENCY_KEY_REUSED`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
 
 ## `POST /shops/:shopId/payments/:paymentId/refund`
 

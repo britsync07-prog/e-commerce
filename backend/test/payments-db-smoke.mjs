@@ -27,10 +27,13 @@ try {
   const checkout = await app.inject({ method: "POST", url: "/api/v1/orders/checkout", payload: { subdomain: `payments-${stamp}`, customer: { name: "Buyer", phone: `+88017${stamp.toString().slice(-8)}`, address: "House 1, Dhaka" }, items: [{ variantId: variant.rows[0].id, quantity: 1 }], paymentMethod: "cod" } });
   assert.equal(checkout.statusCode, 201, checkout.body);
   const orderId = checkout.json().order.id;
-  const marked = await app.inject({ method: "POST", url: `/api/v1/payments/shops/${shopId}/orders/${orderId}/payments/manual`, headers: { authorization: `Bearer ${token}` }, payload: { note: "Cash received" } });
+  const marked = await app.inject({ method: "POST", url: `/api/v1/payments/shops/${shopId}/orders/${orderId}/payments/manual`, headers: { authorization: `Bearer ${token}`, "idempotency-key": `payment-${stamp}` }, payload: { note: "Cash received" } });
   assert.equal(marked.statusCode, 201, marked.body);
   assert.equal(marked.json().payment.status, "marked_paid");
   assert.equal(marked.json().events.length, 2);
+  const paymentReplay = await app.inject({ method: "POST", url: `/api/v1/payments/shops/${shopId}/orders/${orderId}/payments/manual`, headers: { authorization: `Bearer ${token}`, "idempotency-key": `payment-${stamp}` }, payload: { note: "Cash received" } });
+  assert.equal(paymentReplay.statusCode, 201, paymentReplay.body);
+  assert.equal(paymentReplay.json().payment.id, marked.json().payment.id);
   const listed = await app.inject({ method: "GET", url: `/api/v1/payments/shops/${shopId}/payments`, headers: { authorization: `Bearer ${token}` } });
   assert.equal(listed.statusCode, 200, listed.body);
   const paymentId = listed.json().payments[0].id;
