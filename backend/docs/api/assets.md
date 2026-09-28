@@ -79,3 +79,25 @@ Cache:
 Errors:
 - `400 INVALID_PATH`
 - `404 ASSET_NOT_FOUND`
+
+## `POST /:shopId/products/:productId/images`
+
+Purpose: attach an uploaded tenant-owned asset to a product.
+
+Auth: Bearer session required; requires `assets:write`.
+
+Request JSON: `{ "assetId": "uuid", "altText": "Black panjabi", "sortOrder": 0 }`.
+
+Side effects: inserts `product_images` and writes `catalog.product_image_attached` audit data. Asset and product must belong to the same shop.
+
+Errors: `400 VALIDATION_ERROR`, `404 ASSET_NOT_FOUND`, `404 PRODUCT_NOT_FOUND`, `409 IMAGE_ALREADY_ATTACHED`.
+
+## `DELETE /:shopId/products/:productId/images/:imageId`
+
+Purpose: detach an image from a product without deleting the underlying asset.
+
+Auth: Bearer session required; requires `assets:write`.
+
+Side effects: removes the product-image link and writes `catalog.product_image_removed` audit data. Existing orders and stored files are unchanged.
+
+Errors: `404 IMAGE_NOT_FOUND`.

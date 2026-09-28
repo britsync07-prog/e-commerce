@@ -118,7 +118,15 @@ export async function getProduct(shopId: string, productId: string) {
     [shopId, productId]
   );
 
-  return { product: product.rows[0], variants: variants.rows };
+  const images = await db.query(
+    `select pi.id, pi.asset_id, pi.sort_order, pi.alt_text, ao.public_url, ao.mime_type, ao.byte_size
+     from product_images pi join asset_objects ao on ao.id = pi.asset_id
+     where pi.shop_id = $1 and pi.product_id = $2
+     order by pi.sort_order asc, pi.created_at asc`,
+    [shopId, productId]
+  );
+
+  return { product: product.rows[0], variants: variants.rows, images: images.rows };
 }
 
 export async function updateProduct(
