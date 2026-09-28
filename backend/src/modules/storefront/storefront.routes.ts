@@ -7,7 +7,7 @@ export async function registerStorefrontRoutes(app: FastifyInstance) {
     const { subdomain } = request.params as { subdomain: string };
     const shop = await db.query(
       `
-        select id, display_name, subdomain, category, country, currency, logo_url, language, policy_defaults, selected_template_id
+        select id, display_name, subdomain, category, country, currency, logo_url, language, policy_defaults, selected_template_id, storefront_config
         from shops
         where subdomain = $1 and status = 'launched'
       `,
@@ -50,7 +50,8 @@ export async function registerStorefrontRoutes(app: FastifyInstance) {
         logoUrl: shop.rows[0].logo_url,
         language: shop.rows[0].language,
         policyDefaults: shop.rows[0].policy_defaults,
-        selectedTemplateId: template.id
+        selectedTemplateId: template.id,
+        config: shop.rows[0].storefront_config
       },
       template,
       products: products.rows.map((product) => ({
@@ -62,6 +63,42 @@ export async function registerStorefrontRoutes(app: FastifyInstance) {
         variants: [],
         deliveryNotes: undefined
       }))
+    };
+  });
+
+  app.get("/:subdomain/products/:slug", async (request, reply) => {
+    const { subdomain, slug } = request.params as { subdomain: string; slug: string };
+    const result = await db.query(
+      `
+        select p.id, p.name, p.slug, p.description, p.base_price, p.currency,
+          pv.id as variant_id, pv.sku, pv.title as variant_title, pv.price as variant_price,
+          pv.status as variant_status, coalesce(sum(il.delta_quantity), 0)::int as stock,
+          min(ao.public_url) as image_url
+        from shops s
+        join products p on p.shop_id = s.id and p.status = 'active' and p.slug = $2
+        join product_variants pv on pv.product_id = p.id and pv.shop_id = p.shop_id and pv.status = 'active'
+        left join inventory_ledger il on il.shop_id = pv.shop_id and il.variant_id = pv.id
+        left join product_images pi on pi.shop_id = p.shop_id and pi.product_id = p.id
+        left join asset_objects ao on ao.id = pi.asset_id
+        where s.subdomain = $1 and s.status = 'launched'
+        group by p.id, pv.id
+        order by pv.created_at asc
+      `,
+      [subdomain, slug]
+    );
+    if (!result.rowCount) return reply.code(404).send({ code: "PRODUCT_NOT_FOUND", message: "Published product not found." });
+    const first = result.rows[0];
+    return {
+      product: {
+        id: first.id,
+        name: first.name,
+        slug: first.slug,
+        description: first.description,
+        price: Number(first.base_price),
+        currency: first.currency,
+        imageUrl: first.image_url,
+        variants: result.rows.map((row) => ({ id: row.variant_id, sku: row.sku, title: row.variant_title, price: Number(row.variant_price), stock: row.stock }))
+      }
     };
   });
 }

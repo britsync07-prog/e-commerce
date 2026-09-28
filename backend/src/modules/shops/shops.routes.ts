@@ -42,7 +42,21 @@ const updateSettingsSchema = z.object({
       codAllowed: z.boolean().optional()
     })
     .optional(),
-  aiMode: z.enum(["off", "suggest", "auto_low_risk"]).optional()
+  aiMode: z.enum(["off", "suggest", "auto_low_risk"]).optional(),
+  storefront: z.object({
+    templateId: z.string().trim().min(3).max(120).optional(),
+    theme: z.object({
+      accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+      background: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+      text: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional()
+    }).optional(),
+    sections: z.array(z.enum(["hero", "products", "policies", "contact"])).max(10).optional(),
+    seo: z.object({
+      title: z.string().trim().max(160).optional(),
+      description: z.string().trim().max(320).optional(),
+      shareImageUrl: z.string().trim().url().nullable().optional()
+    }).optional()
+  }).optional()
 });
 
 class ShopError extends Error {
@@ -209,6 +223,8 @@ export async function registerShopRoutes(app: FastifyInstance) {
             logo_url = coalesce($9, logo_url),
             policy_defaults = $10,
             ai_mode = coalesce($11, ai_mode),
+            selected_template_id = coalesce(($12::jsonb)->>'templateId', selected_template_id),
+            storefront_config = storefront_config || coalesce($12::jsonb, '{}'::jsonb),
             updated_at = now()
           where id = $1
           returning id
@@ -224,7 +240,8 @@ export async function registerShopRoutes(app: FastifyInstance) {
           body.address ?? null,
           body.logoUrl ?? null,
           JSON.stringify(policyDefaults),
-          body.aiMode ?? null
+          body.aiMode ?? null,
+          body.storefront ? JSON.stringify(body.storefront) : null
         ]
       );
       if (!updated.rowCount) throw new ShopError("Shop not found.", 404, "SHOP_NOT_FOUND");
@@ -269,7 +286,7 @@ async function getSettings(shopId: string) {
   const result = await db.query(
     `
       select id, display_name, legal_name, subdomain, category, country, currency, language, address, logo_url,
-        policy_defaults, ai_mode, status, selected_template_id, updated_at
+        policy_defaults, ai_mode, status, selected_template_id, storefront_config, updated_at
       from shops
       where id = $1
     `,

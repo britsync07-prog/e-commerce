@@ -62,3 +62,13 @@ Cache:
 
 Errors:
 - `404 SHOP_NOT_FOUND` when shop is missing or not launched.
+
+## `GET /:subdomain/products/:slug`
+
+Purpose: public product detail for an active product in a launched shop.
+
+Response: product description, image URL, active variants, prices, and current ledger stock. Address, customer, and internal shop data are never returned.
+
+Side effects: None.
+
+Errors: `404 PRODUCT_NOT_FOUND` when the shop is unpublished or product is unavailable.

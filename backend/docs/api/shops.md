@@ -150,6 +150,27 @@ Cache: Client may cache briefly; refetch after team, catalog, order, or asset ch
 
 Errors: `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
 
+## `PATCH /:shopId/settings`
+
+Purpose: update shop identity, policies, AI mode, and storefront presentation settings.
+
+Request additions:
+
+```json
+{
+  "storefront": {
+    "templateId": "test-fashion-basic",
+    "theme": { "accent": "#111827", "background": "#ffffff", "text": "#111827" },
+    "sections": ["hero", "products", "policies"],
+    "seo": { "title": "Nafis Fashion", "description": "Online shop" }
+  }
+}
+```
+
+Side effects: updates selected template/config and writes `shop.settings_updated` audit data. Existing settings are preserved when only part of storefront config is sent.
+
+Errors: `400 VALIDATION_ERROR`, `401 AUTH_REQUIRED`, `403 SHOP_ACCESS_DENIED`, `403 PERMISSION_DENIED`, `404 SHOP_NOT_FOUND`.
+
 ## `POST /:shopId/team`
 
 Purpose:
