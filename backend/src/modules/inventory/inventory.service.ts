@@ -1,4 +1,5 @@
 import { db } from "../../shared/db.js";
+import { lockInventoryVariants } from "../../shared/inventory-lock.js";
 
 export class InventoryError extends Error {
   constructor(
@@ -23,6 +24,7 @@ export async function adjustStock(shopId: string, variantId: string, input: { de
   const client = await db.connect();
   try {
     await client.query("begin");
+    await lockInventoryVariants(client, shopId, [variantId]);
     await ensureVariant(shopId, variantId);
     const current = await client.query("select coalesce(sum(delta_quantity), 0)::int as quantity from inventory_ledger where shop_id = $1 and variant_id = $2", [
       shopId,
@@ -62,4 +64,3 @@ async function ensureVariant(shopId: string, variantId: string) {
   const variant = await db.query("select id from product_variants where shop_id = $1 and id = $2", [shopId, variantId]);
   if (!variant.rowCount) throw new InventoryError("Variant not found.", 404, "VARIANT_NOT_FOUND");
 }
-

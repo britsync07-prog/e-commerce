@@ -1,5 +1,6 @@
 import { db } from "../../shared/db.js";
 import type { PoolClient } from "pg";
+import { lockInventoryVariants } from "../../shared/inventory-lock.js";
 
 type ShipmentStatus = "booked" | "picked_up" | "in_transit" | "delivered" | "failed" | "returned" | "cancelled";
 
@@ -47,6 +48,7 @@ async function moveOrderForShipment(
 
   if (status === "returned") {
     const items = await client.query("select variant_id, quantity from order_items where shop_id = $1 and order_id = $2", [shopId, orderId]);
+    await lockInventoryVariants(client, shopId, items.rows.map((item) => item.variant_id));
     for (const item of items.rows) {
       const currentStock = await client.query("select coalesce(sum(delta_quantity), 0)::int as quantity from inventory_ledger where shop_id = $1 and variant_id = $2", [
         shopId,

@@ -6,6 +6,7 @@ Purpose:
 - Reads current stock from append-only inventory ledger.
 - Applies manual stock adjustments.
 - Prevents stock from going below zero.
+- Serializes mutations per shop/variant inside the database transaction.
 
 Auth:
 - Bearer session required.
@@ -90,6 +91,7 @@ Audit/timeline:
 
 Cache:
 - Invalidate product detail, product list, storefront reads, and stock widgets.
+- Never use a cached quantity for a write; the transaction re-reads the ledger under a variant lock.
 
 Errors:
 - `400 VALIDATION_ERROR`

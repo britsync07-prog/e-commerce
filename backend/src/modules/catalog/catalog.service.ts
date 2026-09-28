@@ -1,5 +1,6 @@
 import type pg from "pg";
 import { db } from "../../shared/db.js";
+import { lockInventoryVariants } from "../../shared/inventory-lock.js";
 
 export class CatalogError extends Error {
   constructor(
@@ -159,6 +160,7 @@ async function ensureShop(client: Pick<pg.Pool | pg.PoolClient, "query">, shopId
 }
 
 async function writeInventory(client: pg.PoolClient, shopId: string, variantId: string, reason: string, delta: number, actor: string) {
+  await lockInventoryVariants(client, shopId, [variantId]);
   const current = await client.query("select coalesce(sum(delta_quantity), 0)::int as quantity from inventory_ledger where shop_id = $1 and variant_id = $2", [
     shopId,
     variantId

@@ -1,5 +1,6 @@
 import { db } from "../../shared/db.js";
 import type pg from "pg";
+import { lockInventoryVariants } from "../../shared/inventory-lock.js";
 
 type OrderStatus = "new" | "confirmed" | "packed" | "shipped" | "delivered" | "cancelled" | "returned";
 
@@ -41,6 +42,7 @@ export async function submitCheckout(input: {
     const policy = shop.rows[0].policy_defaults as { deliveryCharge?: number; codAllowed?: boolean };
     if (policy.codAllowed === false) throw new OrderError("COD is not available for this shop.", 409, "COD_NOT_ALLOWED");
 
+    await lockInventoryVariants(client, shopId, input.items.map((item) => item.variantId));
     const customer = await client.query(
       `
         insert into customers (shop_id, name, phone)
@@ -347,6 +349,7 @@ export async function confirmOrderDraft(shopId: string, draftId: string, actorId
     const currency = shop.rows[0].currency as string;
     const policy = shop.rows[0].policy_defaults as { deliveryCharge?: number; codAllowed?: boolean };
     if (policy.codAllowed === false) throw new OrderError("COD is not available for this shop.", 409, "COD_NOT_ALLOWED");
+    await lockInventoryVariants(client, shopId, draftItems.map((item) => item.variantId));
 
     const customerRow = await client.query(
       `
@@ -521,6 +524,7 @@ export async function updateOrderStatus(shopId: string, orderId: string, input: 
 
     if (input.status === "cancelled" || input.status === "returned") {
       const items = await client.query("select variant_id, quantity from order_items where shop_id = $1 and order_id = $2", [shopId, orderId]);
+      await lockInventoryVariants(client, shopId, items.rows.map((item) => item.variant_id));
       for (const item of items.rows) {
         const current = await client.query("select coalesce(sum(delta_quantity), 0)::int as quantity from inventory_ledger where shop_id = $1 and variant_id = $2", [
           shopId,
