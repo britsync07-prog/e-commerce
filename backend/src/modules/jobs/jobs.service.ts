@@ -18,6 +18,19 @@ export async function listJobs(shopId: string, input: { status?: string; limit: 
   return { jobs: result.rows };
 }
 
+export async function getJobStats(shopId: string) {
+  const [byStatus, byQueue, oldestPending] = await Promise.all([
+    db.query("select status, count(*)::int as count from outbox_jobs where shop_id = $1 group by status order by status", [shopId]),
+    db.query("select queue, count(*)::int as count from outbox_jobs where shop_id = $1 group by queue order by queue", [shopId]),
+    db.query("select min(run_after) as run_after from outbox_jobs where shop_id = $1 and status in ('pending', 'failed')", [shopId])
+  ]);
+  return {
+    byStatus: Object.fromEntries(byStatus.rows.map((row) => [row.status, row.count])),
+    byQueue: Object.fromEntries(byQueue.rows.map((row) => [row.queue, row.count])),
+    oldestPendingRunAfter: oldestPending.rows[0]?.run_after ?? null
+  };
+}
+
 export async function retryDeadJob(shopId: string, jobId: string, reason: string, actorId: string) {
   const result = await db.query("update outbox_jobs set status = 'pending', attempts = 0, run_after = now(), last_error = null, dead_at = null, locked_at = null, locked_by = null, updated_at = now() where shop_id = $1 and id = $2 and status = 'dead' returning id, status, attempts, run_after", [shopId, jobId]);
   if (!result.rowCount) throw new JobsError("Only dead jobs can be retried.", 409, "JOB_NOT_RETRYABLE");

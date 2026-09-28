@@ -32,6 +32,28 @@ Cache: Client may cache briefly; refetch after enqueue or retry.
 
 Errors: `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
 
+## `GET /shops/:shopId/jobs/stats`
+
+Request: Path `shopId` UUID.
+
+Response:
+
+```json
+{
+  "byStatus": { "pending": 3, "failed": 1, "dead": 1 },
+  "byQueue": { "analytics": 2, "imports": 3 },
+  "oldestPendingRunAfter": "2026-09-28T15:30:00.000Z"
+}
+```
+
+Side effects: None.
+
+Audit/timeline: None for reads.
+
+Cache: Client may cache briefly; refetch after enqueue, retry, or worker runs.
+
+Errors: `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
+
 ## `POST /shops/:shopId/jobs/:jobId/retry`
 
 Request: `{ "reason": "Provider outage resolved; retry the import" }`.

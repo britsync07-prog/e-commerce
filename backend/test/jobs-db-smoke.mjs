@@ -20,5 +20,10 @@ try {
   assert.equal(listed.statusCode, 200, listed.body);
   assert.equal(listed.json().jobs[0].max_attempts, 3);
   assert.equal(listed.json().jobs[0].status, "pending");
+  const stats = await app.inject({ method: "GET", url: `/api/v1/jobs/shops/${shopId}/jobs/stats`, headers: { authorization: `Bearer ${token}` } });
+  assert.equal(stats.statusCode, 200, stats.body);
+  assert.equal(stats.json().byStatus.pending, 1);
+  assert.equal(stats.json().byQueue.analytics, 1);
+  assert.ok(stats.json().oldestPendingRunAfter);
   console.log("Jobs DB smoke passed.");
 } finally { await app.close(); }
