@@ -56,6 +56,7 @@ Cache:
 Errors:
 - `400 VALIDATION_ERROR`
 - `409 USER_EXISTS`
+- `429 RATE_LIMITED` after 5 registrations from one IP in 15 minutes
 
 ## `POST /login`
 
@@ -98,6 +99,7 @@ Errors:
 - `400 VALIDATION_ERROR`
 - `401 INVALID_CREDENTIALS`
 - `403 USER_DISABLED`
+- `429 RATE_LIMITED` after 10 login attempts from one IP in 15 minutes
 
 ## `GET /me`
 

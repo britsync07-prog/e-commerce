@@ -66,8 +66,14 @@ try {
   });
 
   assert.equal(expired.statusCode, 401, expired.body);
+
+  for (let attempt = 0; attempt < 9; attempt += 1) {
+    const rejected = await app.inject({ method: "POST", url: "/api/v1/auth/login", payload: { identifier: email, password: "wrong-password" } });
+    assert.equal(rejected.statusCode, 401, rejected.body);
+  }
+  const throttled = await app.inject({ method: "POST", url: "/api/v1/auth/login", payload: { identifier: email, password: "wrong-password" } });
+  assert.equal(throttled.statusCode, 429, throttled.body);
   console.log("Auth DB smoke passed.");
 } finally {
   await app.close();
 }
-

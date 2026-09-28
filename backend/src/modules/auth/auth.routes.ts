@@ -14,7 +14,7 @@ function handleError(error: unknown) {
 }
 
 export async function registerAuthRoutes(app: FastifyInstance) {
-  app.post("/register", async (request, reply) => {
+  app.post("/register", { config: { rateLimit: { max: 5, timeWindow: "15 minutes" } } }, async (request, reply) => {
     try {
       const body = parse(registerSchema, request.body);
       return reply.code(201).send(await registerUser(body));
@@ -24,7 +24,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     }
   });
 
-  app.post("/login", async (request, reply) => {
+  app.post("/login", { config: { rateLimit: { max: 10, timeWindow: "15 minutes" } } }, async (request, reply) => {
     try {
       const body = parse(loginSchema, request.body);
       return login(body, {
