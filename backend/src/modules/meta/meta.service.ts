@@ -86,10 +86,10 @@ export async function createConnection(shopId: string, input: { pageId: string; 
   }
 }
 
-export async function updateConnection(shopId: string, connectionId: string, status: "active" | "disabled" | "error", actorId: string) {
+export async function updateConnection(shopId: string, connectionId: string, status: "active" | "disabled" | "error", actorId: string, reason?: string) {
   const result = await db.query(`update meta_connections set status = $3, updated_at = now() where shop_id = $1 and id = $2 returning id, shop_id, page_id, instagram_account_id, status, last_verified_at, last_webhook_at, settings, updated_at`, [shopId, connectionId, status]);
   if (!result.rowCount) throw new MetaError("Meta connection not found.", 404, "META_CONNECTION_NOT_FOUND");
-  await audit(shopId, actorId, "meta.connection_status_updated", "meta_connection", connectionId, { status });
+  await audit(shopId, actorId, "meta.connection_status_updated", "meta_connection", connectionId, { status, ...(reason ? { reason } : {}) });
   return { connection: { ...result.rows[0], hasCredential: true } };
 }
 

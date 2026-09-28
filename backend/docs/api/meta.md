@@ -74,13 +74,13 @@ Errors: `META_OAUTH_SELECTION_INVALID`, `META_PAGE_NOT_GRANTED`, `META_CONNECTIO
 
 ## `PATCH /shops/:shopId/connections/:connectionId`
 
-Request: `{ "status": "active|disabled|error" }`.
+Request: `{ "status": "active|disabled|error", "reason": "optional unless disabling" }`. A 3-500 character reason is required for `disabled`.
 
 Response: Updated connection with `hasCredential: true`.
 
-Side effects: Enables or disables future Meta processing for the connection.
+Side effects: Enables or disables future Meta processing for the connection. Disabling does not delete credentials or historical webhook data.
 
-Audit/timeline: Writes `meta.connection_status_updated` audit.
+Audit/timeline: Writes `meta.connection_status_updated` audit with the operator reason when disabling.
 
 Cache: Invalidate connection reads.
 

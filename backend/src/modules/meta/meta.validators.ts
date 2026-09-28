@@ -2,7 +2,14 @@ import { z } from "zod";
 
 export const shopParamsSchema = z.object({ shopId: z.string().uuid() });
 export const connectionParamsSchema = z.object({ shopId: z.string().uuid(), connectionId: z.string().uuid() });
-export const updateConnectionSchema = z.object({ status: z.enum(["active", "disabled", "error"]) });
+export const updateConnectionSchema = z.object({
+  status: z.enum(["active", "disabled", "error"]),
+  reason: z.string().trim().min(3).max(500).optional()
+}).superRefine((value, context) => {
+  if (value.status === "disabled" && !value.reason) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["reason"], message: "A reason is required when disabling a Meta connection." });
+  }
+});
 export const oauthCompleteSchema = z.object({ state: z.string().trim().min(20).max(200), pageId: z.string().trim().min(1).max(120) });
 export const catalogSyncSchema = z.object({
   connectionId: z.string().uuid(),

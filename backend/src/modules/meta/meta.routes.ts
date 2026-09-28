@@ -30,7 +30,7 @@ export async function registerMetaRoutes(app: FastifyInstance) {
     catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
   });
   app.patch("/shops/:shopId/connections/:connectionId", async (request, reply) => {
-    try { const params = parse(connectionParamsSchema, request.params); const body = parse(updateConnectionSchema, request.body); const session = await requireShopPermission(request, params.shopId, "settings:write"); return updateConnection(params.shopId, params.connectionId, body.status, session.user.id as string); }
+    try { const params = parse(connectionParamsSchema, request.params); const body = parse(updateConnectionSchema, request.body); const session = await requireShopPermission(request, params.shopId, "settings:write"); return updateConnection(params.shopId, params.connectionId, body.status, session.user.id as string, body.reason); }
     catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
   });
   app.get("/shops/:shopId/catalog-sync", async (request, reply) => {

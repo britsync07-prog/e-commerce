@@ -33,6 +33,13 @@ try {
   assert.equal(listed.statusCode, 200, listed.body);
   assert.equal(listed.json().connections.length, 1);
   const connectionId = listed.json().connections[0].id;
+  const missingDisableReason = await app.inject({ method: "PATCH", url: `/api/v1/meta/shops/${shopId}/connections/${connectionId}`, headers: { authorization: `Bearer ${token}` }, payload: { status: "disabled" } });
+  assert.equal(missingDisableReason.statusCode, 400, missingDisableReason.body);
+  const disabled = await app.inject({ method: "PATCH", url: `/api/v1/meta/shops/${shopId}/connections/${connectionId}`, headers: { authorization: `Bearer ${token}` }, payload: { status: "disabled", reason: "Smoke test disconnect" } });
+  assert.equal(disabled.statusCode, 200, disabled.body);
+  assert.equal(disabled.json().connection.status, "disabled");
+  const reenabled = await app.inject({ method: "PATCH", url: `/api/v1/meta/shops/${shopId}/connections/${connectionId}`, headers: { authorization: `Bearer ${token}` }, payload: { status: "active" } });
+  assert.equal(reenabled.statusCode, 200, reenabled.body);
   const configured = await app.inject({ method: "PUT", url: `/api/v1/meta/shops/${shopId}/catalog-sync`, headers: { authorization: `Bearer ${token}` }, payload: { connectionId, skipUnpublished: true, skipOutOfStock: true } });
   assert.equal(configured.statusCode, 200, configured.body);
   assert.equal(configured.json().catalogSync.status, "pending");
