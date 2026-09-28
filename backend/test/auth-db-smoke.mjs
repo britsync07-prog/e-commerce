@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import pg from "pg";
 import { buildApp } from "../dist/app.js";
 
 if (!process.env.DATABASE_URL) {
@@ -7,6 +8,8 @@ if (!process.env.DATABASE_URL) {
 }
 
 const app = await buildApp();
+const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+await client.connect();
 const stamp = Date.now();
 const email = `auth-smoke-${stamp}@example.com`;
 
@@ -73,7 +76,10 @@ try {
   }
   const throttled = await app.inject({ method: "POST", url: "/api/v1/auth/login", payload: { identifier: email, password: "wrong-password" } });
   assert.equal(throttled.statusCode, 429, throttled.body);
+  const failedEvents = await client.query("select count(*)::int as count from auth_events where event_type = 'login_failed' and metadata->>'identifierHash' is not null");
+  assert.ok(failedEvents.rows[0].count >= 1);
   console.log("Auth DB smoke passed.");
 } finally {
+  await client.end();
   await app.close();
 }

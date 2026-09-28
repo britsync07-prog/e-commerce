@@ -47,8 +47,7 @@ Side effects:
 - Inserts `users`.
 - Stores password as salted `scrypt` hash.
 
-Audit/timeline:
-- None yet. Add `auth.user_registered` audit once actor model is wired to auth.
+Audit/timeline: Writes `auth_events.registered`.
 
 Cache:
 - Do not cache.
@@ -88,8 +87,7 @@ Response:
 Side effects:
 - Inserts `user_sessions` with hashed token.
 
-Audit/timeline:
-- None yet. Add `auth.login` audit after auth actor model is shared.
+Audit/timeline: Writes `auth_events.login` on success and `login_failed`/`login_blocked` on rejected attempts. Failed-event metadata stores only a one-way identifier hash.
 
 Cache:
 - Do not cache.

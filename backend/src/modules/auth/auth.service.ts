@@ -46,11 +46,20 @@ export async function login(input: { identifier: string; password: string }, met
     [identifier, input.identifier]
   );
 
-  if (!user.rowCount || !user.rows[0].password_hash) throw new AuthError("Invalid credentials.", 401, "INVALID_CREDENTIALS");
-  if (user.rows[0].status !== "active") throw new AuthError("User is disabled.", 403, "USER_DISABLED");
+  if (!user.rowCount || !user.rows[0].password_hash) {
+    await recordLoginEvent(null, "login_failed", meta, input.identifier);
+    throw new AuthError("Invalid credentials.", 401, "INVALID_CREDENTIALS");
+  }
+  if (user.rows[0].status !== "active") {
+    await recordLoginEvent(user.rows[0].id, "login_blocked", meta, input.identifier);
+    throw new AuthError("User is disabled.", 403, "USER_DISABLED");
+  }
 
   const ok = await verifyPassword(input.password, user.rows[0].password_hash);
-  if (!ok) throw new AuthError("Invalid credentials.", 401, "INVALID_CREDENTIALS");
+  if (!ok) {
+    await recordLoginEvent(user.rows[0].id, "login_failed", meta, input.identifier);
+    throw new AuthError("Invalid credentials.", 401, "INVALID_CREDENTIALS");
+  }
 
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + sessionDays * 24 * 60 * 60 * 1000);
@@ -152,4 +161,11 @@ function publicUser(row: Record<string, unknown>) {
 
 function isUniqueViolation(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
+}
+
+async function recordLoginEvent(userId: unknown, eventType: "login_failed" | "login_blocked", meta: { userAgent?: string; ipAddress?: string }, identifier: string) {
+  await db.query(
+    "insert into auth_events (user_id, event_type, ip_address, user_agent, metadata) values ($1, $2, $3, $4, $5)",
+    [userId, eventType, meta.ipAddress ?? null, meta.userAgent ?? null, JSON.stringify({ identifierHash: hashToken(identifier.toLowerCase()) })]
+  );
 }
