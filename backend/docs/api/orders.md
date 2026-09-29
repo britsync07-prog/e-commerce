@@ -212,6 +212,156 @@ Errors:
 - `403 PERMISSION_DENIED`
 - `404 ORDER_NOT_FOUND`
 
+## `GET /shops/:shopId/issues`
+
+Purpose:
+- Staff issue queue for orders needing operations attention.
+- Includes open failed-delivery issues, courier provider failures, and packed orders missing an open shipment.
+
+Auth/permission:
+- Bearer token required.
+- Requires `orders:read` on `shopId`.
+
+Request:
+- Query `limit`: optional number from `1` to `100`, default `50`.
+
+Response:
+- `200`
+
+```json
+{
+  "issues": [
+    {
+      "order_id": "uuid",
+      "issue_type": "shipment_missing",
+      "reason": "Packed order has no open shipment",
+      "status": "packed"
+    }
+  ]
+}
+```
+
+Side effects:
+- None. Issues are derived from order, shipment, and failed-delivery state.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `403 PERMISSION_DENIED`
+
+## `POST /shops/:shopId/orders/bulk/preview`
+
+Purpose:
+- Preview bulk dashboard actions before staff run them.
+- For booking, invalid orders are skipped with a reason instead of blocking the whole batch.
+
+Auth/permission:
+- Bearer token required.
+- Requires `orders:read` on `shopId`.
+
+Request:
+
+```json
+{
+  "action": "book",
+  "orderIds": ["uuid"]
+}
+```
+
+Response:
+- `200`
+
+```json
+{
+  "action": "book",
+  "total": 2,
+  "ready": 1,
+  "skipped": 1,
+  "items": [
+    { "orderId": "uuid", "status": "ready" },
+    { "orderId": "uuid", "status": "skipped", "reason": "ORDER_NOT_PACKED" }
+  ]
+}
+```
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `403 PERMISSION_DENIED`
+
+## `POST /shops/:shopId/orders/bulk/export`
+
+Purpose:
+- Export selected orders as CSV using the same bulk selection rules.
+
+Auth/permission:
+- Bearer token required.
+- Requires `exports:run` on `shopId`.
+
+Request:
+
+```json
+{
+  "action": "export",
+  "orderIds": ["uuid"]
+}
+```
+
+Response:
+- `200 text/csv`
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `403 PERMISSION_DENIED`
+
+## `POST /shops/:shopId/orders/bulk/book`
+
+Purpose:
+- Bulk-book manual courier shipments for packed orders.
+- Skips invalid orders and reports why.
+
+Auth/permission:
+- Bearer token required.
+- Requires `delivery:write` on `shopId`.
+
+Request:
+
+```json
+{
+  "orderIds": ["uuid"],
+  "courierName": "Manual Courier",
+  "fee": 80,
+  "note": "Daily pickup"
+}
+```
+
+Response:
+- `200`
+
+```json
+{
+  "action": "book",
+  "total": 2,
+  "booked": 1,
+  "skipped": 1,
+  "items": [
+    { "orderId": "uuid", "status": "ready", "shipmentId": "uuid" },
+    { "orderId": "uuid", "status": "skipped", "reason": "ORDER_NOT_PACKED" }
+  ]
+}
+```
+
+Side effects:
+- Creates manual shipments for valid orders.
+- Moves booked orders from `packed` to `shipped`.
+- Writes shipment tracking, order timeline, and audit events through the delivery booking flow.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `403 PERMISSION_DENIED`
+
 ## `PATCH /shops/:shopId/orders/:orderId/status`
 
 Purpose:

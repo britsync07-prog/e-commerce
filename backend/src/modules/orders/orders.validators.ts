@@ -39,6 +39,22 @@ export const orderListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50)
 });
 
+export const orderIssueListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50)
+});
+
+export const orderBulkPreviewSchema = z.object({
+  action: z.enum(["print", "book", "export"]),
+  orderIds: z.array(z.string().uuid()).min(1).max(100)
+});
+
+export const orderBulkBookSchema = z.object({
+  orderIds: z.array(z.string().uuid()).min(1).max(100),
+  courierName: z.string().trim().min(2).max(120),
+  fee: z.coerce.number().min(0).max(100000).default(0),
+  note: z.string().trim().max(500).optional()
+});
+
 export const updateStatusSchema = z.object({
   status: z.enum(["confirmed", "packed", "shipped", "delivered", "cancelled", "returned"]),
   reason: z.string().trim().min(3).max(500).optional()

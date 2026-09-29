@@ -147,6 +147,83 @@ try {
   });
   assert.equal(finalMove.statusCode, 409, finalMove.body);
 
+  const bookableCheckout = await app.inject({
+    method: "POST",
+    url: "/api/v1/orders/checkout",
+    payload: {
+      subdomain,
+      customer: { name: "Buyer Two", phone: `+88018${stamp.toString().slice(-8)}`, address: "House 2, Road 3, Dhaka" },
+      items: [{ variantId, quantity: 1 }],
+      paymentMethod: "cod"
+    }
+  });
+  assert.equal(bookableCheckout.statusCode, 201, bookableCheckout.body);
+  const bookableOrderId = bookableCheckout.json().order.id;
+
+  const unreadyCheckout = await app.inject({
+    method: "POST",
+    url: "/api/v1/orders/checkout",
+    payload: {
+      subdomain,
+      customer: { name: "Buyer Three", phone: `+88019${stamp.toString().slice(-8)}`, address: "House 3, Road 4, Dhaka" },
+      items: [{ variantId, quantity: 1 }],
+      paymentMethod: "cod"
+    }
+  });
+  assert.equal(unreadyCheckout.statusCode, 201, unreadyCheckout.body);
+  const unreadyOrderId = unreadyCheckout.json().order.id;
+
+  const packedForBook = await app.inject({
+    method: "PATCH",
+    url: `/api/v1/orders/shops/${shopId}/orders/${bookableOrderId}/status`,
+    headers: { authorization: `Bearer ${token}` },
+    payload: { status: "packed" }
+  });
+  assert.equal(packedForBook.statusCode, 200, packedForBook.body);
+
+  const issues = await app.inject({ method: "GET", url: `/api/v1/orders/shops/${shopId}/issues`, headers: { authorization: `Bearer ${token}` } });
+  assert.equal(issues.statusCode, 200, issues.body);
+  assert.ok(issues.json().issues.some((issue) => issue.order_id === bookableOrderId && issue.issue_type === "shipment_missing"));
+
+  const preview = await app.inject({
+    method: "POST",
+    url: `/api/v1/orders/shops/${shopId}/orders/bulk/preview`,
+    headers: { authorization: `Bearer ${token}` },
+    payload: { action: "book", orderIds: [bookableOrderId, unreadyOrderId] }
+  });
+  assert.equal(preview.statusCode, 200, preview.body);
+  assert.equal(preview.json().ready, 1);
+  assert.equal(preview.json().skipped, 1);
+  assert.equal(preview.json().items.find((item) => item.orderId === unreadyOrderId).reason, "ORDER_NOT_PACKED");
+
+  const exported = await app.inject({
+    method: "POST",
+    url: `/api/v1/orders/shops/${shopId}/orders/bulk/export`,
+    headers: { authorization: `Bearer ${token}` },
+    payload: { action: "export", orderIds: [bookableOrderId, unreadyOrderId] }
+  });
+  assert.equal(exported.statusCode, 200, exported.body);
+  assert.match(exported.body, /id,status,total,currency,buyer_name,buyer_phone,created_at/);
+  assert.match(exported.headers["content-type"], /text\/csv/);
+
+  const bulkBooked = await app.inject({
+    method: "POST",
+    url: `/api/v1/orders/shops/${shopId}/orders/bulk/book`,
+    headers: { authorization: `Bearer ${token}` },
+    payload: { orderIds: [bookableOrderId, unreadyOrderId], courierName: "Manual Courier", fee: 80, note: "Bulk book smoke" }
+  });
+  assert.equal(bulkBooked.statusCode, 200, bulkBooked.body);
+  assert.equal(bulkBooked.json().booked, 1);
+  assert.equal(bulkBooked.json().skipped, 1);
+
+  const shippedDetail = await app.inject({
+    method: "GET",
+    url: `/api/v1/orders/shops/${shopId}/orders/${bookableOrderId}`,
+    headers: { authorization: `Bearer ${token}` }
+  });
+  assert.equal(shippedDetail.statusCode, 200, shippedDetail.body);
+  assert.equal(shippedDetail.json().order.status, "shipped");
+
   console.log("Order dashboard DB smoke passed.");
 } finally {
   await client.end();

@@ -3,6 +3,9 @@ import { ZodError, type ZodTypeAny } from "zod";
 import { AuthError } from "../auth/auth.service.js";
 import { PermissionError, requireShopPermission } from "../../shared/permissions.js";
 import {
+  bulkBookOrders,
+  bulkExportOrdersCsv,
+  bulkPreviewOrders,
   confirmOrderDraft,
   confirmCheckoutLink,
   createCheckoutLink,
@@ -12,6 +15,7 @@ import {
   getCheckoutLinkDraft,
   getOrderForBuyer,
   getOrderForStaff,
+  listOrderIssues,
   listOrderDrafts,
   listOrders,
   OrderError,
@@ -26,8 +30,11 @@ import {
   createCheckoutLinkSchema,
   createOrderDraftSchema,
   extractOrderDraftSchema,
+  orderBulkBookSchema,
+  orderBulkPreviewSchema,
   orderDraftListQuerySchema,
   orderDraftParamsSchema,
+  orderIssueListQuerySchema,
   orderListParamsSchema,
   orderListQuerySchema,
   orderParamsSchema,
@@ -107,6 +114,55 @@ export async function registerOrderRoutes(app: FastifyInstance) {
       const query = parse(orderListQuerySchema, request.query);
       await requireShopPermission(request, params.shopId, "orders:read");
       return listOrders(params.shopId, query);
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.get("/shops/:shopId/issues", async (request, reply) => {
+    try {
+      const params = parse(orderListParamsSchema, request.params);
+      const query = parse(orderIssueListQuerySchema, request.query);
+      await requireShopPermission(request, params.shopId, "orders:read");
+      return listOrderIssues(params.shopId, query);
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.post("/shops/:shopId/orders/bulk/preview", async (request, reply) => {
+    try {
+      const params = parse(orderListParamsSchema, request.params);
+      const body = parse(orderBulkPreviewSchema, request.body);
+      await requireShopPermission(request, params.shopId, "orders:read");
+      return bulkPreviewOrders(params.shopId, body);
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.post("/shops/:shopId/orders/bulk/export", async (request, reply) => {
+    try {
+      const params = parse(orderListParamsSchema, request.params);
+      const body = parse(orderBulkPreviewSchema, request.body);
+      await requireShopPermission(request, params.shopId, "exports:run");
+      const result = await bulkExportOrdersCsv(params.shopId, body.orderIds);
+      return reply.type("text/csv; charset=utf-8").header("content-disposition", "attachment; filename=orders-bulk-export.csv").send(result.csv);
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.post("/shops/:shopId/orders/bulk/book", async (request, reply) => {
+    try {
+      const params = parse(orderListParamsSchema, request.params);
+      const body = parse(orderBulkBookSchema, request.body);
+      const session = await requireShopPermission(request, params.shopId, "delivery:write");
+      return bulkBookOrders(params.shopId, body, session.user.id as string);
     } catch (error) {
       const result = handleError(error);
       return reply.code(result.statusCode).send(result.body);

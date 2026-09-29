@@ -2,6 +2,7 @@ import { db } from "../../shared/db.js";
 import type pg from "pg";
 import { lockInventoryVariants } from "../../shared/inventory-lock.js";
 import { createHash, randomBytes } from "node:crypto";
+import { createManualShipment, DeliveryError } from "../delivery/delivery.service.js";
 
 type OrderStatus = "new" | "confirmed" | "packed" | "shipped" | "delivered" | "cancelled" | "returned";
 
@@ -229,6 +230,7 @@ export async function getOrderForBuyer(orderId: string, phone: string) {
 
 type DraftCustomer = { name?: string; phone?: string; address?: string; city?: string; area?: string };
 type DraftItem = { variantId: string; quantity: number; confidence?: number };
+type BulkAction = "print" | "book" | "export";
 
 export async function listOrderDrafts(shopId: string, input: { status?: string; limit: number }) {
   const values: unknown[] = [shopId, input.limit];
@@ -609,6 +611,86 @@ export async function listOrders(shopId: string, input: { status?: string; limit
   return { orders: orders.rows };
 }
 
+export async function listOrderIssues(shopId: string, input: { limit: number }) {
+  const result = await db.query(
+    `
+      select *
+      from (
+        select o.id as order_id, 'failed_delivery' as issue_type, fd.reason as reason, fd.created_at, o.status, o.buyer_snapshot
+        from failed_deliveries fd
+        join orders o on o.id = fd.order_id and o.shop_id = fd.shop_id
+        where fd.shop_id = $1 and fd.status = 'open'
+        union all
+        select o.id as order_id, 'courier_provider' as issue_type, sh.provider_error as reason, sh.updated_at as created_at, o.status, o.buyer_snapshot
+        from shipments sh
+        join orders o on o.id = sh.order_id and o.shop_id = sh.shop_id
+        where sh.shop_id = $1 and sh.provider_status in ('not_connected', 'failed')
+        union all
+        select o.id as order_id, 'shipment_missing' as issue_type, 'Packed order has no open shipment' as reason, o.updated_at as created_at, o.status, o.buyer_snapshot
+        from orders o
+        where o.shop_id = $1 and o.status = 'packed' and not exists (
+          select 1 from shipments sh where sh.shop_id = o.shop_id and sh.order_id = o.id and sh.status not in ('cancelled', 'returned')
+        )
+      ) issues
+      order by created_at desc
+      limit $2
+    `,
+    [shopId, input.limit]
+  );
+  return { issues: result.rows };
+}
+
+export async function bulkPreviewOrders(shopId: string, input: { action: BulkAction; orderIds: string[] }) {
+  const rows = await bulkOrderRows(shopId, input.orderIds);
+  const found = new Map(rows.map((row) => [row.id as string, row]));
+  const items = input.orderIds.map((orderId) => previewOrder(orderId, found.get(orderId), input.action));
+  return { action: input.action, total: items.length, ready: items.filter((item) => item.status === "ready").length, skipped: items.filter((item) => item.status === "skipped").length, items };
+}
+
+export async function bulkExportOrdersCsv(shopId: string, orderIds: string[]) {
+  const preview = await bulkPreviewOrders(shopId, { action: "export", orderIds });
+  const readyIds = preview.items.filter((item) => item.status === "ready").map((item) => item.orderId);
+  if (!readyIds.length) return { csv: "id,status,total,currency,buyer_name,buyer_phone,created_at\n" };
+  const result = await db.query(
+    `
+      select id, status, total, currency, buyer_snapshot, created_at
+      from orders
+      where shop_id = $1 and id = any($2::uuid[])
+      order by created_at desc
+    `,
+    [shopId, readyIds]
+  );
+  return {
+    csv: [
+      "id,status,total,currency,buyer_name,buyer_phone,created_at",
+      ...result.rows.map((row) => [row.id, row.status, row.total, row.currency, row.buyer_snapshot?.name ?? "", row.buyer_snapshot?.phone ?? "", row.created_at.toISOString()].map(csv).join(",")),
+      ""
+    ].join("\n")
+  };
+}
+
+export async function bulkBookOrders(
+  shopId: string,
+  input: { orderIds: string[]; courierName: string; fee: number; note?: string },
+  actorId: string
+) {
+  const preview = await bulkPreviewOrders(shopId, { action: "book", orderIds: input.orderIds });
+  const items = [];
+  for (const item of preview.items) {
+    if (item.status === "skipped") {
+      items.push(item);
+      continue;
+    }
+    try {
+      const booked = await createManualShipment(shopId, { orderId: item.orderId, courierName: input.courierName, fee: input.fee, note: input.note }, actorId);
+      items.push({ ...item, shipmentId: booked.shipment.id });
+    } catch (error) {
+      items.push({ orderId: item.orderId, status: "skipped", reason: error instanceof DeliveryError || error instanceof OrderError ? error.code : "BOOKING_FAILED" });
+    }
+  }
+  return { action: "book", total: items.length, booked: items.filter((item) => item.status === "ready" && "shipmentId" in item).length, skipped: items.filter((item) => item.status === "skipped").length, items };
+}
+
 export async function getOrderForStaff(shopId: string, orderId: string) {
   const order = await db.query(
     `
@@ -766,6 +848,39 @@ async function activeCheckoutLink(token: string) {
 
 function publicCheckoutLink(link: Record<string, unknown>) {
   return { status: link.status, expires_at: link.expires_at, created_at: link.created_at };
+}
+
+async function bulkOrderRows(shopId: string, orderIds: string[]) {
+  if (!orderIds.length) return [];
+  const result = await db.query(
+    `
+      select o.id, o.status, o.total, o.currency, o.buyer_snapshot, o.created_at,
+        exists (
+          select 1 from shipments sh where sh.shop_id = o.shop_id and sh.order_id = o.id and sh.status not in ('cancelled', 'returned')
+        ) as has_open_shipment
+      from orders o
+      where o.shop_id = $1 and o.id = any($2::uuid[])
+    `,
+    [shopId, orderIds]
+  );
+  return result.rows;
+}
+
+function previewOrder(orderId: string, row: pg.QueryResultRow | undefined, action: BulkAction) {
+  if (!row) return { orderId, status: "skipped" as const, reason: "ORDER_NOT_FOUND" };
+  if (action === "book") {
+    const buyer = row.buyer_snapshot as { phone?: string; address?: string };
+    if (row.status !== "packed") return { orderId, status: "skipped" as const, reason: "ORDER_NOT_PACKED" };
+    if (!buyer.phone || !buyer.address) return { orderId, status: "skipped" as const, reason: "SHIPMENT_ADDRESS_INCOMPLETE" };
+    if (row.has_open_shipment) return { orderId, status: "skipped" as const, reason: "SHIPMENT_ALREADY_EXISTS" };
+  }
+  if (action === "print" && ["cancelled", "returned"].includes(row.status as string)) return { orderId, status: "skipped" as const, reason: "ORDER_CLOSED" };
+  return { orderId, status: "ready" as const };
+}
+
+function csv(value: unknown) {
+  const text = String(value ?? "");
+  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
 async function writeDraftAudit(client: pg.PoolClient, shopId: string, actorId: string, action: string, draftId: string, metadata: Record<string, unknown>) {
