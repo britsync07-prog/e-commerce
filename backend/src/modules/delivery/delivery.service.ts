@@ -82,7 +82,7 @@ export async function listShipments(shopId: string, input: { status?: string; li
 
   const shipments = await db.query(
     `
-      select sh.id, sh.shop_id, sh.order_id, sh.provider, sh.status, sh.courier_name, sh.tracking_number,
+      select sh.id, sh.shop_id, sh.order_id, sh.provider, sh.status, sh.provider_status, sh.provider_error, sh.courier_name, sh.tracking_number,
         sh.fee, sh.booking_source, sh.booked_at, sh.last_sync_at, sh.created_at, sh.updated_at,
         o.status as order_status, o.buyer_snapshot
       from shipments sh
@@ -131,7 +131,7 @@ export async function testCourierAccount(shopId: string, accountId: string, acto
 export async function getShipment(shopId: string, shipmentId: string) {
   const shipment = await db.query(
     `
-      select sh.id, sh.shop_id, sh.order_id, sh.provider, sh.status, sh.courier_name, sh.tracking_number,
+      select sh.id, sh.shop_id, sh.order_id, sh.provider, sh.status, sh.provider_status, sh.provider_error, sh.courier_name, sh.tracking_number,
         sh.fee, sh.booking_source, sh.booked_by, sh.booked_at, sh.last_sync_at, sh.metadata,
         sh.created_at, sh.updated_at, o.status as order_status, o.buyer_snapshot
       from shipments sh
