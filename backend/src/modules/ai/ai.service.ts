@@ -93,7 +93,7 @@ export async function createAdCreative(shopId: string, userId: string, input: Ad
   const rules = brandRules.rows[0] ?? { rules: {}, banned_claims: [], default_language: "bn-en", default_tone: "friendly" };
   const language = input.language ?? rules.default_language;
   const tone = input.tone ?? rules.default_tone;
-  const safety = creativeSafetyFindings([input.objective, input.offer, input.audience, ...(rules.banned_claims ?? [])]);
+  const safety = creativeSafetyFindings([input.objective, input.offer, input.audience], rules.banned_claims ?? []);
   const blocked = safety.some((finding) => finding.severity === "block");
   const client = await db.connect();
   try {
@@ -143,7 +143,7 @@ async function citationsFor(shopId: string, prompt: string) {
   return citations;
 }
 
-function creativeSafetyFindings(values: Array<string | undefined>) {
+function creativeSafetyFindings(values: Array<string | undefined>, bannedClaims: string[]) {
   const text = values.filter(Boolean).join(" ").toLowerCase();
   const findings: Array<{ severity: "warn" | "block"; code: string; message: string }> = [];
   const blocks: Array<[RegExp, string, string]> = [
@@ -152,6 +152,9 @@ function creativeSafetyFindings(values: Array<string | undefined>) {
     [/100% guaranteed|guaranteed result|copy competitor|steal/, "UNREALISTIC_OR_COPYING", "Unrealistic guarantees or copying competitor text are blocked."]
   ];
   for (const [pattern, code, message] of blocks) if (pattern.test(text)) findings.push({ severity: "block", code, message });
+  for (const claim of bannedClaims) {
+    if (claim && text.includes(claim.toLowerCase())) findings.push({ severity: "block", code: "BRAND_BANNED_CLAIM", message: "Request contains a claim blocked by this shop's brand rules." });
+  }
   if (/best|cheapest|#1|number one/.test(text)) findings.push({ severity: "warn", code: "SUPERLATIVE_CLAIM", message: "Superlative claims should be backed by proof before publishing." });
   return findings;
 }
