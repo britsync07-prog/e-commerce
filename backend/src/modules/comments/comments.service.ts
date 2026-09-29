@@ -129,6 +129,7 @@ export async function captureComment(shopId: string, input: CommentInput & { ext
   const client = await db.connect();
   try {
     await client.query("begin");
+    const actorUuid = actorId === "system" ? null : actorId;
     const customerId = input.customerPhone ? await findOrCreateCustomer(client, shopId, input.commenterName, input.customerPhone) : null;
     const rateLimited = preview.matchedRule ? await isRateLimited(client, shopId, preview.matchedRule.id, preview.matchedRule.limitPerHour) : false;
     const automation = rateLimited
@@ -163,9 +164,9 @@ export async function captureComment(shopId: string, input: CommentInput & { ext
       if (automation.preview.dm) await createActionJob(client, shopId, automation.matchedRule.id, lead.rows[0].id, "dm");
     }
     if (automation.safety.requiresReview) {
-      await client.query("insert into comment_moderation_records (shop_id, lead_id, sentiment, hidden, reason, created_by) values ($1, $2, $3, false, $4, $5)", [shopId, lead.rows[0].id, automation.sentiment, automation.safety.reason, actorId]);
+      await client.query("insert into comment_moderation_records (shop_id, lead_id, sentiment, hidden, reason, created_by) values ($1, $2, $3, false, $4, $5)", [shopId, lead.rows[0].id, automation.sentiment, automation.safety.reason, actorUuid]);
     }
-    await client.query("insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'staff', $2, 'comment.lead_captured', 'comment_lead', $3, $4)", [shopId, actorId, lead.rows[0].id, JSON.stringify({ externalCommentId: input.externalCommentId, autoDmAllowed: automation.safety.autoDmAllowed })]);
+    await client.query("insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, $2, $3, 'comment.lead_captured', 'comment_lead', $4, $5)", [shopId, actorId === "system" ? "system" : "staff", actorId, lead.rows[0].id, JSON.stringify({ externalCommentId: input.externalCommentId, autoDmAllowed: automation.safety.autoDmAllowed })]);
     await client.query("commit");
     return { lead: lead.rows[0], automation };
   } catch (error) {
