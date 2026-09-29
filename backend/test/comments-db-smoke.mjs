@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import pg from "pg";
-import { buildApp } from "../dist/app.js";
 
 if (!process.env.DATABASE_URL) {
   console.log("Skipping comments DB smoke: DATABASE_URL is not set.");
   process.exit(0);
 }
+
+process.env.META_WEBHOOK_SECRET ??= "comments-smoke-webhook-secret";
+const { buildApp } = await import("../dist/app.js");
+const { runOnce } = await import("../dist/worker.js");
 
 const app = await buildApp();
 const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
@@ -46,6 +50,18 @@ try {
   const customer = await client.query("select id from customers where shop_id = $1 and phone = $2", [shopId, phone]);
   assert.equal(customer.rowCount, 1);
   assert.equal(capture.json().lead.customer_id, customer.rows[0].id);
+  const actionJob = await client.query(
+    `select ca.id, ca.provider_status, ca.job_id, oj.queue, oj.job_type
+     from comment_automation_actions ca
+     join outbox_jobs oj on oj.id = ca.job_id
+     where ca.shop_id = $1 and ca.lead_id = $2
+     order by ca.created_at asc limit 1`,
+    [shopId, capture.json().lead.id]
+  );
+  assert.equal(actionJob.rowCount, 1);
+  assert.equal(actionJob.rows[0].provider_status, "queued");
+  assert.equal(actionJob.rows[0].queue, "comments");
+  assert.equal(actionJob.rows[0].job_type, "comment.action.dispatch");
 
   const duplicate = await app.inject({ method: "POST", url: `/api/v1/comments/shops/${shopId}/comments/capture`, headers: { authorization: `Bearer ${token}` }, payload: { postId, platform: "facebook", externalCommentId: `comment-${stamp}`, commenterExternalId: "buyer-1", commenterName: "Buyer One", commentText: "pp?", customerPhone: phone } });
   assert.equal(duplicate.statusCode, 201, duplicate.body);
@@ -71,6 +87,21 @@ try {
   assert.equal(leads.json().leads.length, 3);
   const audit = await client.query("select action from audit_events where shop_id = $1 and action in ('comment.lead_captured', 'comment.moderated')", [shopId]);
   assert.ok(audit.rowCount >= 3);
+
+  await runOnce();
+  const action = await client.query("select provider_status, status from comment_automation_actions where id = $1", [actionJob.rows[0].id]);
+  assert.equal(action.rows[0].provider_status, "not_connected");
+  assert.equal(action.rows[0].status, "failed");
+
+  const webhookPayload = { object: "page", entry: [{ changes: [{ field: "feed", value: { post_id: `post-${stamp}`, comment_id: `webhook-${stamp}`, message: "price please", from: { id: "buyer-webhook", name: "Webhook Buyer" } } }] }] };
+  const signature = `sha256=${createHmac("sha256", process.env.META_WEBHOOK_SECRET).update(JSON.stringify(webhookPayload)).digest("hex")}`;
+  const webhook = await app.inject({ method: "POST", url: `/api/v1/webhooks/meta/${shopId}`, headers: { "x-hub-signature-256": signature, "x-meta-event-id": `comments-${stamp}` }, payload: webhookPayload });
+  assert.equal(webhook.statusCode, 200, webhook.body);
+  for (let i = 0; i < 6; i += 1) await runOnce();
+  const webhookEvent = await client.query("select status from webhook_events where provider_event_id = $1", [`comments-${stamp}`]);
+  assert.equal(webhookEvent.rows[0].status, "processed");
+  const webhookLead = await client.query("select id from comment_leads where shop_id = $1 and external_comment_id = $2", [shopId, `webhook-${stamp}`]);
+  assert.equal(webhookLead.rowCount, 1);
   console.log("Comments DB smoke passed.");
 } finally {
   await client.end();

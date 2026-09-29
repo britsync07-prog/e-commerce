@@ -12,6 +12,15 @@ type CommentInput = {
   commentText: string;
 };
 
+type MetaCommentEvent = {
+  platform: "facebook" | "instagram";
+  externalPostId: string;
+  externalCommentId: string;
+  commenterExternalId: string;
+  commenterName?: string;
+  commentText: string;
+};
+
 export async function listPosts(shopId: string, input: { status?: string; limit: number }) {
   const values: unknown[] = [shopId, input.limit];
   const filter = input.status ? "and sp.status = $3" : "";
@@ -150,8 +159,8 @@ export async function captureComment(shopId: string, input: CommentInput & { ext
       ]
     );
     if (automation.safety.autoDmAllowed && automation.matchedRule) {
-      if (automation.preview.publicReply) await client.query("insert into comment_automation_actions (shop_id, rule_id, lead_id, action, status) values ($1, $2, $3, 'public_reply', 'drafted')", [shopId, automation.matchedRule.id, lead.rows[0].id]);
-      if (automation.preview.dm) await client.query("insert into comment_automation_actions (shop_id, rule_id, lead_id, action, status) values ($1, $2, $3, 'dm', 'drafted')", [shopId, automation.matchedRule.id, lead.rows[0].id]);
+      if (automation.preview.publicReply) await createActionJob(client, shopId, automation.matchedRule.id, lead.rows[0].id, "public_reply");
+      if (automation.preview.dm) await createActionJob(client, shopId, automation.matchedRule.id, lead.rows[0].id, "dm");
     }
     if (automation.safety.requiresReview) {
       await client.query("insert into comment_moderation_records (shop_id, lead_id, sentiment, hidden, reason, created_by) values ($1, $2, $3, false, $4, $5)", [shopId, lead.rows[0].id, automation.sentiment, automation.safety.reason, actorId]);
@@ -165,6 +174,58 @@ export async function captureComment(shopId: string, input: CommentInput & { ext
   } finally {
     client.release();
   }
+}
+
+export async function ingestMetaCommentEvents(shopId: string, events: MetaCommentEvent[]) {
+  const results = [];
+  for (const event of events) {
+    const post = await db.query("select id from social_posts where shop_id = $1 and platform = $2 and external_post_id = $3 and status = 'active' limit 1", [shopId, event.platform, event.externalPostId]);
+    if (!post.rowCount) {
+      results.push({ externalCommentId: event.externalCommentId, status: "ignored", reason: "POST_NOT_REGISTERED" });
+      continue;
+    }
+    const captured = await captureComment(shopId, { postId: post.rows[0].id, platform: event.platform, externalCommentId: event.externalCommentId, commenterExternalId: event.commenterExternalId, commenterName: event.commenterName, commentText: event.commentText }, "system");
+    results.push({ externalCommentId: event.externalCommentId, status: "captured", leadId: captured.lead.id });
+  }
+  await db.query("insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'system', 'system', 'comment.meta_webhook_processed', 'shop', $1, $2)", [shopId, JSON.stringify({ total: events.length, captured: results.filter((result) => result.status === "captured").length })]);
+  return { processed: results };
+}
+
+export function extractMetaCommentEvents(payload: unknown): MetaCommentEvent[] {
+  const body = payload as { object?: string; entry?: Array<{ changes?: Array<{ field?: string; value?: Record<string, unknown> }>; messaging?: Array<Record<string, unknown>> }> };
+  const events: MetaCommentEvent[] = [];
+  for (const entry of body.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      const value = change.value ?? {};
+      const text = stringValue(value.message) ?? stringValue(value.text);
+      const commentId = stringValue(value.comment_id) ?? stringValue(value.id);
+      const postId = stringValue(value.post_id) ?? stringValue(value.media_id) ?? stringValue(value.parent_id);
+      if (!text || !commentId || !postId) continue;
+      const from = value.from as { id?: unknown; name?: unknown } | undefined;
+      events.push({
+        platform: body.object === "instagram" ? "instagram" : "facebook",
+        externalPostId: postId,
+        externalCommentId: commentId,
+        commenterExternalId: stringValue(from?.id) ?? "unknown",
+        commenterName: stringValue(from?.name),
+        commentText: text
+      });
+    }
+  }
+  return events;
+}
+
+export async function markCommentActionNotConnected(actionId: string) {
+  const result = await db.query(
+    `update comment_automation_actions
+     set status = 'failed', provider_status = 'not_connected', attempts = attempts + 1, last_attempt_at = now(), updated_at = now(), error = 'META_SEND_NOT_CONNECTED'
+     where id = $1 and provider_status = 'queued'
+     returning id, shop_id, lead_id, action, status, provider_status, attempts`,
+    [actionId]
+  );
+  if (!result.rowCount) return { skipped: true };
+  await db.query("insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'system', 'system', 'comment.action_not_connected', 'comment_automation_action', $2, $3)", [result.rows[0].shop_id, actionId, JSON.stringify({ action: result.rows[0].action })]);
+  return { action: result.rows[0] };
 }
 
 export async function listLeads(shopId: string, input: { status?: string; limit: number }) {
@@ -268,6 +329,16 @@ async function isRateLimited(client: { query: typeof db.query }, shopId: string,
     [shopId, ruleId]
   );
   return Number(result.rows[0].count) >= limitPerHour;
+}
+
+async function createActionJob(client: { query: typeof db.query }, shopId: string, ruleId: string, leadId: string, action: "public_reply" | "dm") {
+  const row = await client.query("insert into comment_automation_actions (shop_id, rule_id, lead_id, action, status, provider_status) values ($1, $2, $3, $4, 'drafted', 'queued') returning id", [shopId, ruleId, leadId, action]);
+  const job = await client.query("insert into outbox_jobs (shop_id, queue, job_type, payload, max_attempts) values ($1, 'comments', 'comment.action.dispatch', $2, 3) returning id", [shopId, JSON.stringify({ actionId: row.rows[0].id })]);
+  await client.query("update comment_automation_actions set job_id = $2 where id = $1", [row.rows[0].id, job.rows[0].id]);
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
 async function audit(shopId: string, actorId: string, action: string, targetType: string, targetId: string, metadata: unknown) {

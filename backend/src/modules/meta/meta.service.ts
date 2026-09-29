@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { config } from "../../shared/config.js";
 import { db } from "../../shared/db.js";
+import { extractMetaCommentEvents, ingestMetaCommentEvents } from "../comments/comments.service.js";
 
 export class MetaError extends Error {
   constructor(message: string, public readonly statusCode: number, public readonly code: string) { super(message); }
@@ -164,8 +165,24 @@ export async function ingestWebhook(shopId: string, payload: unknown, signature:
   const payloadHash = createHash("sha256").update(raw).digest("hex");
   const result = await db.query(`insert into webhook_events (shop_id, provider, provider_event_id, payload_hash, raw_payload, status) values ($1, 'meta', $2, $3, $4, 'pending') on conflict (provider, provider_event_id) do nothing returning id, provider_event_id, status, created_at`, [shopId, providerEventId, payloadHash, raw]);
   if (!result.rowCount) return { accepted: true, duplicate: true, providerEventId };
+  await db.query("insert into outbox_jobs (shop_id, queue, job_type, payload, max_attempts) values ($1, 'webhooks', 'meta.webhook.process', $2, 5)", [shopId, JSON.stringify({ webhookEventId: result.rows[0].id })]);
   await db.query("update meta_connections set last_webhook_at = now(), updated_at = now() where shop_id = $1 and status = 'active'", [shopId]);
   return { accepted: true, duplicate: false, event: result.rows[0] };
+}
+
+export async function processMetaWebhookEvent(webhookEventId: string) {
+  const event = await db.query("select id, shop_id, raw_payload, status from webhook_events where id = $1 and provider = 'meta' limit 1", [webhookEventId]);
+  if (!event.rowCount) return { skipped: true, reason: "WEBHOOK_EVENT_NOT_FOUND" };
+  if (event.rows[0].status === "processed") return { skipped: true, reason: "ALREADY_PROCESSED" };
+  const payload = typeof event.rows[0].raw_payload === "string" ? JSON.parse(event.rows[0].raw_payload) : event.rows[0].raw_payload;
+  const comments = extractMetaCommentEvents(payload);
+  if (!comments.length) {
+    await db.query("update webhook_events set status = 'ignored', processed_at = now() where id = $1", [webhookEventId]);
+    return { ignored: true, reason: "NO_COMMENT_EVENTS" };
+  }
+  const result = await ingestMetaCommentEvents(event.rows[0].shop_id, comments);
+  await db.query("update webhook_events set status = 'processed', processed_at = now() where id = $1", [webhookEventId]);
+  return result;
 }
 
 export async function verifyWebhook(query: { mode?: string; verifyToken?: string; challenge?: string }) {

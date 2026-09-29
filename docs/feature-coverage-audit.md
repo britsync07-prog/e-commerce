@@ -24,7 +24,7 @@ Generated from `pdfs/`, `tasks/`, `docs/`, backend routes, migrations, API docs,
 | 02 | Website builder / themes / storefront | Partial | Storefront settings in shop settings, public shop lookup, product list/detail, checkout through orders API, tracking lookup. | No real theme builder or 5 production themes; no domain publish retry flow; SEO/policy data is only basic config. |
 | 03 | Products / inventory | Implemented | Products, variants, images, import/export, stock ledger, stock adjustments, SKU conflict handling, order snapshots, stock reservation/release. | Import accepts JSON rows, not native Excel/CSV upload parsing. |
 | 04 | AI inbox Messenger/Instagram | Partial | Conversations, messages, assignment, suggest-only AI drafts, confidence/source refs, review states, Meta webhook ingestion storage. | No outbound Meta send; no real LLM/provider; escalation is heuristic; auto-send intentionally absent. |
-| 05 | Comment automation / lead capture | Partial | Social posts, comment rules, safe previews, lead capture, customer merge by phone, moderation records, audit. | No real Meta comment webhook processor or outbound public reply/DM sender yet; rate limits are stored on rules but not enforced against provider sends because sending is deferred. |
+| 05 | Comment automation / lead capture | Partial | Social posts, comment rules, safe previews, lead capture, customer merge by phone, moderation records, signed Meta comment webhook processing, queued action dispatch records, audit. | No outbound public reply/DM sender yet; queued sends are marked `not_connected` until a real Meta sender is configured. |
 | 06 | AI order confirmation / checkout forms | Partial | Order drafts, confidence/risk fields, missing-field validation, checkout, draft confirm, stock checks, cancellation keeps history. | No real AI extractor; no checkout-link expiry table/flow exposed. |
 | 07 | Orders dashboard | Partial | Order list/detail, drafts, status pipeline, timeline, permission checks, status reason rules, stock release on cancel/return. | No bulk print/book/export endpoint; issue queue is limited to related delivery/payment records. |
 | 08 | Delivery / courier | Partial | Manual courier booking, shipments, tracking events, failed delivery records, reschedule flow, order timeline/audit sync. | No courier API credential test/connect; no provider webhook preference/conflict resolution; no manual booking sheet export. |
@@ -47,8 +47,7 @@ Generated from `pdfs/`, `tasks/`, `docs/`, backend routes, migrations, API docs,
 
 ## Next Build Order
 
-1. Close PDF 05 gaps: Meta comment webhook processing, action history, provider send/retry workers.
-2. Close PDF 02 gaps: production themes/builder and publish/domain retry.
-3. Close PDF 08/11 integrations: real courier and Meta workers.
-4. Close PDF 06 AI extraction and checkout-link expiry.
-5. Close PDF 12 provider integration after a real LLM/image provider is selected.
+1. Close PDF 02 gaps: production themes/builder and publish/domain retry.
+2. Close PDF 08/11 integrations: real courier and Meta outbound workers.
+3. Close PDF 06 AI extraction and checkout-link expiry.
+4. Close PDF 12 provider integration after a real LLM/image provider is selected.

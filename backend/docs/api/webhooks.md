@@ -24,9 +24,9 @@ Request: JSON provider payload. Required `x-hub-signature-256: sha256=<hex>`; op
 
 Response: `{ "accepted": true, "duplicate": false, "event": { ... } }`; repeated provider IDs return `duplicate: true`.
 
-Side effects: Verifies the HMAC, stores a pending event in `webhook_events`, and updates active Meta connections’ `last_webhook_at`. Domain records are not changed during ingestion.
+Side effects: Verifies the HMAC, stores a pending event in `webhook_events`, queues `meta.webhook.process`, and updates active Meta connections' `last_webhook_at`. The worker extracts Facebook/Instagram comment events, matches active registered social posts, captures comment leads, and leaves non-comment events as `ignored`.
 
-Audit/timeline: No staff audit actor exists for a provider callback; event state is tracked in `webhook_events`.
+Audit/timeline: No staff audit actor exists for ingestion; processed comment payloads write `comment.meta_webhook_processed`, and event state is tracked in `webhook_events`.
 
 Cache: Do not cache. Idempotency is enforced by `(provider, provider_event_id)`.
 

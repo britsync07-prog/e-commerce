@@ -4,7 +4,7 @@ Purpose: manage Facebook/Instagram post comment automation, lead capture, modera
 
 Auth: bearer session. Reads require `marketing:read`; writes require `marketing:write`.
 
-No route sends a real Meta reply or DM in this phase. The API stores local drafts/previews so staff can inspect exactly what a buyer would receive.
+No route sends a real Meta reply or DM in this phase. Allowed actions are queued in `outbox_jobs`; the worker marks them `not_connected` until a real Meta sender is configured.
 
 ## `GET /shops/:shopId/posts`
 
@@ -102,7 +102,7 @@ Request: `{ "postId": "uuid", "platform": "facebook", "externalCommentId": "comm
 
 Response: `201` with `{ "lead": { ... }, "automation": { ...preview shape... } }`.
 
-Side effects: inserts or reuses a `comment_leads` row, may create/reuse a customer by phone, stores preview text, creates local automation action records for allowed reply/DM drafts, rate-limits those local actions per rule, and creates a moderation record for angry/spam/unsafe/rate-limited comments. It does not send a DM.
+Side effects: inserts or reuses a `comment_leads` row, may create/reuse a customer by phone, stores preview text, creates local automation action records for allowed reply/DM drafts, queues `comment.action.dispatch` jobs with provider status `queued`, rate-limits those local actions per rule, and creates a moderation record for angry/spam/unsafe/rate-limited comments. It does not send a DM.
 
 Audit/timeline: writes `comment.lead_captured`; moderation records preserve review state.
 
