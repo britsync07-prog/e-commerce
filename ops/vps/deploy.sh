@@ -6,6 +6,7 @@ BRANCH="${BRANCH:-main}"
 REPO_URL="${REPO_URL:-https://github.com/britsync07-prog/e-commerce.git}"
 BACKEND_APP="${BACKEND_APP:-fcommerce-backend}"
 STOREFRONT_APP="${STOREFRONT_APP:-fcommerce-storefront}"
+WORKER_APP="${WORKER_APP:-fcommerce-worker}"
 
 log() {
   printf '\n[%s] %s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$*"
@@ -15,6 +16,7 @@ dump_logs() {
   log "deploy failed; recent PM2 logs for this project only"
   pm2 logs "$BACKEND_APP" --lines 120 --nostream || true
   pm2 logs "$STOREFRONT_APP" --lines 120 --nostream || true
+  pm2 logs "$WORKER_APP" --lines 120 --nostream || true
 }
 
 trap dump_logs ERR
@@ -71,9 +73,11 @@ pm2 startOrReload ops/vps/ecosystem.config.cjs --update-env
 log "PM2 status"
 pm2 describe "$BACKEND_APP" || true
 pm2 describe "$STOREFRONT_APP" || true
+pm2 describe "$WORKER_APP" || true
 
 log "recent PM2 logs"
 pm2 logs "$BACKEND_APP" --lines 50 --nostream || true
 pm2 logs "$STOREFRONT_APP" --lines 50 --nostream || true
+pm2 logs "$WORKER_APP" --lines 50 --nostream || true
 
 log "deploy complete"
