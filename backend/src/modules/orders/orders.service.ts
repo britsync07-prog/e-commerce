@@ -1,7 +1,7 @@
 import { db } from "../../shared/db.js";
 import type pg from "pg";
 import { lockInventoryVariants } from "../../shared/inventory-lock.js";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 type OrderStatus = "new" | "confirmed" | "packed" | "shipped" | "delivered" | "cancelled" | "returned";
 
@@ -323,6 +323,19 @@ export async function createOrderDraft(
   return getOrderDraft(shopId, draftId);
 }
 
+export async function createOrderDraftFromMessage(
+  shopId: string,
+  input: { conversationId?: string; message: string },
+  actorId: string
+) {
+  const extracted = await extractDraftFields(shopId, input.message);
+  return createOrderDraft(
+    shopId,
+    { conversationId: input.conversationId, customer: extracted.customer, items: extracted.items, paymentMethod: "cod", confidence: extracted.confidence },
+    actorId
+  );
+}
+
 export async function updateOrderDraft(
   shopId: string,
   draftId: string,
@@ -500,6 +513,81 @@ export async function confirmOrderDraft(shopId: string, draftId: string, actorId
   return getOrderForBuyer(orderId, phone);
 }
 
+export async function createCheckoutLink(
+  shopId: string,
+  draftId: string,
+  input: { expiresInMinutes: number },
+  actorId: string
+) {
+  const client = await db.connect();
+  try {
+    await client.query("begin");
+    const draft = await client.query("select id, status from order_drafts where shop_id = $1 and id = $2 for update", [shopId, draftId]);
+    if (!draft.rowCount) throw new OrderError("Order draft not found.", 404, "ORDER_DRAFT_NOT_FOUND");
+    if (draft.rows[0].status === "confirmed") throw new OrderError("Confirmed draft cannot get a checkout link.", 409, "ORDER_DRAFT_CONFIRMED");
+    if (draft.rows[0].status === "cancelled") throw new OrderError("Cancelled draft cannot get a checkout link.", 409, "ORDER_DRAFT_CANCELLED");
+
+    const token = randomBytes(32).toString("base64url");
+    const link = await client.query(
+      `
+        insert into order_checkout_links (shop_id, order_draft_id, token, expires_at, created_by)
+        values ($1, $2, $3, now() + ($4::text || ' minutes')::interval, $5)
+        returning id, token, status, expires_at, created_at
+      `,
+      [shopId, draftId, token, input.expiresInMinutes, actorId]
+    );
+    await writeDraftAudit(client, shopId, actorId, "order_draft.checkout_link_created", draftId, { checkoutLinkId: link.rows[0].id });
+    await client.query("commit");
+    return { checkoutLink: link.rows[0] };
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getCheckoutLinkDraft(token: string) {
+  const link = await activeCheckoutLink(token);
+  const draft = await getOrderDraft(link.shop_id, link.order_draft_id);
+  return { checkoutLink: publicCheckoutLink(link), ...draft };
+}
+
+export async function updateOrderDraftFromCheckoutLink(token: string, input: { customer: DraftCustomer }) {
+  const link = await activeCheckoutLink(token);
+  const client = await db.connect();
+  try {
+    await client.query("begin");
+    const current = await client.query("select customer_snapshot from order_drafts where shop_id = $1 and id = $2 for update", [link.shop_id, link.order_draft_id]);
+    if (!current.rowCount) throw new OrderError("Order draft not found.", 404, "ORDER_DRAFT_NOT_FOUND");
+    const items = await currentDraftItems(client, link.shop_id, link.order_draft_id);
+    const customer = { ...(current.rows[0].customer_snapshot as DraftCustomer), ...input.customer };
+    const risk = riskForDraft(customer, items);
+    await client.query(
+      `
+        update order_drafts
+        set customer_snapshot = $3, risk_status = $4, risk_reasons = $5, status = $6, updated_at = now()
+        where shop_id = $1 and id = $2
+      `,
+      [link.shop_id, link.order_draft_id, customer, risk.status, JSON.stringify(risk.reasons), risk.reasons.length ? "draft" : "ready"]
+    );
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+  return getCheckoutLinkDraft(token);
+}
+
+export async function confirmCheckoutLink(token: string) {
+  const link = await activeCheckoutLink(token);
+  const result = await confirmOrderDraft(link.shop_id, link.order_draft_id, "checkout-link");
+  await db.query("update order_checkout_links set status = 'used', used_at = now() where id = $1 and status = 'active'", [link.id]);
+  return result;
+}
+
 export async function listOrders(shopId: string, input: { status?: string; limit: number }) {
   const values: unknown[] = [shopId, input.limit];
   const statusFilter = input.status ? "and o.status = $3" : "";
@@ -631,6 +719,53 @@ function riskForDraft(customer: DraftCustomer, items: DraftItem[]) {
   if (!customer.address) reasons.push("address_missing");
   if (!items.length) reasons.push("items_missing");
   return { status: reasons.length ? ("review" as const) : ("safe" as const), reasons };
+}
+
+async function extractDraftFields(shopId: string, message: string): Promise<{ customer: DraftCustomer; items: DraftItem[]; confidence: number }> {
+  const phone = message.match(/(?:\+?8801|01)\d{9}\b/)?.[0];
+  const name = message.match(/(?:name|ami|i am)\s*[:\-]?\s*([a-z][a-z .'-]{1,80}?)(?=\s+(?:phone|address|addr|thikana|want|order)\b|$)/i)?.[1]?.trim();
+  const address = message.match(/(?:address|addr|thikana)\s*[:\-]?\s*([^\n]{8,300}?)(?=\s+(?:want|order|qty|quantity|\d+\s*(?:x|pcs?|pieces?))\b|$)/i)?.[1]?.trim();
+  const products = await db.query(
+    `
+      select pv.id, p.name
+      from product_variants pv
+      join products p on p.id = pv.product_id
+      where pv.shop_id = $1 and pv.status = 'active' and p.status = 'active'
+      order by length(p.name) desc
+      limit 100
+    `,
+    [shopId]
+  );
+  const lower = message.toLowerCase();
+  const matched = products.rows.find((row) => lower.includes(String(row.name).toLowerCase()));
+  const quantityMatch = message.match(/\b(?:qty|quantity)\s*[:\-]?\s*(\d{1,2})\b/i) ?? message.match(/\b(\d{1,2})\s*(?:x|pcs?|pieces?)\b/i);
+  const quantity = Number(quantityMatch?.[1] ?? 1);
+  const items = matched ? [{ variantId: matched.id as string, quantity: Math.max(1, quantity), confidence: 0.75 }] : [];
+  const confidence = [phone, name, address, matched].filter(Boolean).length / 4;
+  return { customer: { name, phone, address }, items, confidence };
+}
+
+async function activeCheckoutLink(token: string) {
+  const link = await db.query(
+    `
+      select id, shop_id, order_draft_id, token, status, expires_at, used_at, created_at
+      from order_checkout_links
+      where token = $1
+    `,
+    [token]
+  );
+  if (!link.rowCount) throw new OrderError("Checkout link not found.", 404, "CHECKOUT_LINK_NOT_FOUND");
+  const row = link.rows[0];
+  if (row.status !== "active") throw new OrderError("Checkout link is no longer active.", 410, "CHECKOUT_LINK_INACTIVE");
+  if (new Date(row.expires_at).getTime() <= Date.now()) {
+    await db.query("update order_checkout_links set status = 'expired' where id = $1 and status = 'active'", [row.id]);
+    throw new OrderError("Checkout link has expired.", 410, "CHECKOUT_LINK_EXPIRED");
+  }
+  return row;
+}
+
+function publicCheckoutLink(link: Record<string, unknown>) {
+  return { status: link.status, expires_at: link.expires_at, created_at: link.created_at };
 }
 
 async function writeDraftAudit(client: pg.PoolClient, shopId: string, actorId: string, action: string, draftId: string, metadata: Record<string, unknown>) {

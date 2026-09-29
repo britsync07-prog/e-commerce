@@ -4,26 +4,35 @@ import { AuthError } from "../auth/auth.service.js";
 import { PermissionError, requireShopPermission } from "../../shared/permissions.js";
 import {
   confirmOrderDraft,
+  confirmCheckoutLink,
+  createCheckoutLink,
   createOrderDraft,
+  createOrderDraftFromMessage,
   getOrderDraft,
+  getCheckoutLinkDraft,
   getOrderForBuyer,
   getOrderForStaff,
   listOrderDrafts,
   listOrders,
   OrderError,
   submitCheckout,
+  updateOrderDraftFromCheckoutLink,
   updateOrderDraft,
   updateOrderStatus
 } from "./orders.service.js";
 import {
   checkoutSchema,
+  checkoutLinkParamsSchema,
+  createCheckoutLinkSchema,
   createOrderDraftSchema,
+  extractOrderDraftSchema,
   orderDraftListQuerySchema,
   orderDraftParamsSchema,
   orderListParamsSchema,
   orderListQuerySchema,
   orderParamsSchema,
   trackSchema,
+  updateCheckoutLinkDraftSchema,
   updateOrderDraftSchema,
   updateStatusSchema
 } from "./orders.validators.js";
@@ -55,6 +64,37 @@ export async function registerOrderRoutes(app: FastifyInstance) {
     try {
       const query = parse(trackSchema, request.query);
       return getOrderForBuyer(query.orderId, query.phone);
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.get("/checkout-links/:token", async (request, reply) => {
+    try {
+      const params = parse(checkoutLinkParamsSchema, request.params);
+      return getCheckoutLinkDraft(params.token);
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.patch("/checkout-links/:token", async (request, reply) => {
+    try {
+      const params = parse(checkoutLinkParamsSchema, request.params);
+      const body = parse(updateCheckoutLinkDraftSchema, request.body);
+      return updateOrderDraftFromCheckoutLink(params.token, body);
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.post("/checkout-links/:token/confirm", async (request, reply) => {
+    try {
+      const params = parse(checkoutLinkParamsSchema, request.params);
+      return reply.code(201).send(await confirmCheckoutLink(params.token));
     } catch (error) {
       const result = handleError(error);
       return reply.code(result.statusCode).send(result.body);
@@ -97,6 +137,18 @@ export async function registerOrderRoutes(app: FastifyInstance) {
     }
   });
 
+  app.post("/shops/:shopId/drafts/extract", async (request, reply) => {
+    try {
+      const params = parse(orderListParamsSchema, request.params);
+      const body = parse(extractOrderDraftSchema, request.body);
+      const session = await requireShopPermission(request, params.shopId, "orders:write");
+      return reply.code(201).send(await createOrderDraftFromMessage(params.shopId, body, session.user.id as string));
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
   app.get("/shops/:shopId/drafts/:draftId", async (request, reply) => {
     try {
       const params = parse(orderDraftParamsSchema, request.params);
@@ -125,6 +177,18 @@ export async function registerOrderRoutes(app: FastifyInstance) {
       const params = parse(orderDraftParamsSchema, request.params);
       const session = await requireShopPermission(request, params.shopId, "orders:write");
       return reply.code(201).send(await confirmOrderDraft(params.shopId, params.draftId, session.user.id as string));
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.post("/shops/:shopId/drafts/:draftId/checkout-link", async (request, reply) => {
+    try {
+      const params = parse(orderDraftParamsSchema, request.params);
+      const body = parse(createCheckoutLinkSchema, request.body);
+      const session = await requireShopPermission(request, params.shopId, "orders:write");
+      return reply.code(201).send(await createCheckoutLink(params.shopId, params.draftId, body, session.user.id as string));
     } catch (error) {
       const result = handleError(error);
       return reply.code(result.statusCode).send(result.body);

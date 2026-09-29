@@ -365,6 +365,40 @@ Errors:
 - `404 CONVERSATION_NOT_FOUND`
 - `404 VARIANT_NOT_FOUND`
 
+## `POST /shops/:shopId/drafts/extract`
+
+Purpose:
+- Create an editable order draft from a chat message.
+- Extracts phone, name, address, quantity, and a product match when the message contains an active product name.
+- Missing fields stay in `risk_reasons` so staff can ask one field at a time.
+
+Auth/permission:
+- Bearer token required.
+- Requires `orders:write` on `shopId`.
+
+Request:
+
+```json
+{
+  "conversationId": "uuid",
+  "message": "name Buyer phone +8801700000000 address House 1, Road 2, Dhaka want 2 pcs Black Panjabi"
+}
+```
+
+Response:
+- `201`
+- Same shape as draft detail.
+
+Side effects:
+- Inserts `order_drafts` and matched `order_draft_items`.
+- Writes audit action `order_draft.created`.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `403 PERMISSION_DENIED`
+- `404 CONVERSATION_NOT_FOUND`
+
 ## `GET /shops/:shopId/drafts/:draftId`
 
 Purpose:
@@ -517,3 +551,109 @@ Errors:
 - `409 ORDER_DRAFT_INCOMPLETE`
 - `409 COD_NOT_ALLOWED`
 - `409 STOCK_UNAVAILABLE`
+
+## `POST /shops/:shopId/drafts/:draftId/checkout-link`
+
+Purpose:
+- Create a public checkout form link for a draft from a messy chat.
+- Link tokens expire and become inactive after confirmation.
+
+Auth/permission:
+- Bearer token required.
+- Requires `orders:write` on `shopId`.
+
+Request:
+
+```json
+{
+  "expiresInMinutes": 1440
+}
+```
+
+Response:
+- `201`
+
+```json
+{
+  "checkoutLink": {
+    "id": "uuid",
+    "token": "opaque-token",
+    "status": "active",
+    "expires_at": "2026-09-30T12:00:00.000Z"
+  }
+}
+```
+
+Side effects:
+- Inserts `order_checkout_links`.
+- Writes audit action `order_draft.checkout_link_created`.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `403 PERMISSION_DENIED`
+- `404 ORDER_DRAFT_NOT_FOUND`
+- `409 ORDER_DRAFT_CANCELLED`
+- `409 ORDER_DRAFT_CONFIRMED`
+
+## `GET /checkout-links/:token`
+
+Purpose:
+- Public checkout form read for the buyer.
+- Returns the draft, items, and link expiry when the token is active.
+
+Auth/permission:
+- Public bearer token in the URL.
+
+Errors:
+- `404 CHECKOUT_LINK_NOT_FOUND`
+- `410 CHECKOUT_LINK_EXPIRED`
+- `410 CHECKOUT_LINK_INACTIVE`
+
+## `PATCH /checkout-links/:token`
+
+Purpose:
+- Let the buyer fill missing customer fields on the public checkout form.
+
+Request:
+
+```json
+{
+  "customer": {
+    "name": "Buyer Name",
+    "phone": "+8801700000000",
+    "address": "House 1, Road 2, Dhaka"
+  }
+}
+```
+
+Response:
+- `200`
+- Same shape as public checkout-link read.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `404 CHECKOUT_LINK_NOT_FOUND`
+- `410 CHECKOUT_LINK_EXPIRED`
+- `410 CHECKOUT_LINK_INACTIVE`
+
+## `POST /checkout-links/:token/confirm`
+
+Purpose:
+- Public buyer confirmation for a complete checkout-link draft.
+- Reuses draft confirmation, so stock, COD policy, and snapshots are checked server-side.
+
+Response:
+- `201`
+- Same shape as buyer order detail.
+
+Side effects:
+- Creates the confirmed order through draft confirmation.
+- Marks the checkout link `used`.
+
+Errors:
+- `404 CHECKOUT_LINK_NOT_FOUND`
+- `409 ORDER_DRAFT_INCOMPLETE`
+- `409 STOCK_UNAVAILABLE`
+- `410 CHECKOUT_LINK_EXPIRED`
+- `410 CHECKOUT_LINK_INACTIVE`

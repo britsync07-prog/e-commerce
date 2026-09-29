@@ -71,6 +71,37 @@ try {
   assert.equal(conversation.statusCode, 201, conversation.body);
   const conversationId = conversation.json().conversation.id;
 
+  const extracted = await app.inject({
+    method: "POST",
+    url: `/api/v1/orders/shops/${shopId}/drafts/extract`,
+    headers: { authorization: `Bearer ${token}` },
+    payload: {
+      conversationId,
+      message: `name Buyer One phone ${phone} address House 1, Road 2, Dhaka want 2 pcs Draft Shirt`
+    }
+  });
+  assert.equal(extracted.statusCode, 201, extracted.body);
+  assert.equal(extracted.json().draft.status, "ready");
+  assert.equal(extracted.json().items.length, 1);
+
+  const extractLink = await app.inject({
+    method: "POST",
+    url: `/api/v1/orders/shops/${shopId}/drafts/${extracted.json().draft.id}/checkout-link`,
+    headers: { authorization: `Bearer ${token}` },
+    payload: { expiresInMinutes: 30 }
+  });
+  assert.equal(extractLink.statusCode, 201, extractLink.body);
+  const tokenized = await app.inject({ method: "GET", url: `/api/v1/orders/checkout-links/${extractLink.json().checkoutLink.token}` });
+  assert.equal(tokenized.statusCode, 200, tokenized.body);
+  assert.equal(tokenized.json().draft.id, extracted.json().draft.id);
+
+  const linkConfirmed = await app.inject({ method: "POST", url: `/api/v1/orders/checkout-links/${extractLink.json().checkoutLink.token}/confirm` });
+  assert.equal(linkConfirmed.statusCode, 201, linkConfirmed.body);
+  assert.equal(linkConfirmed.json().order.status, "confirmed");
+
+  const usedLink = await app.inject({ method: "GET", url: `/api/v1/orders/checkout-links/${extractLink.json().checkoutLink.token}` });
+  assert.equal(usedLink.statusCode, 410, usedLink.body);
+
   const draft = await app.inject({
     method: "POST",
     url: `/api/v1/orders/shops/${shopId}/drafts`,
@@ -116,7 +147,7 @@ try {
     shopId,
     variantId
   ]);
-  assert.equal(Number(stock.rows[0].quantity), 2);
+  assert.equal(Number(stock.rows[0].quantity), 0);
 
   const again = await app.inject({
     method: "POST",

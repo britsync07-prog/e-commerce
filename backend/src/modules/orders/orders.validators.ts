@@ -82,3 +82,20 @@ export const updateOrderDraftSchema = z.object({
   status: z.enum(["draft", "ready", "cancelled"]).optional(),
   confidence: z.coerce.number().min(0).max(1).optional()
 });
+
+export const extractOrderDraftSchema = z.object({
+  conversationId: z.string().uuid().optional(),
+  message: z.string().trim().min(2).max(2000)
+});
+
+export const createCheckoutLinkSchema = z.object({
+  expiresInMinutes: z.coerce.number().int().min(5).max(10080).default(1440)
+});
+
+export const checkoutLinkParamsSchema = z.object({
+  token: z.string().trim().min(20).max(120)
+});
+
+export const updateCheckoutLinkDraftSchema = z.object({
+  customer: draftCustomerSchema
+});
