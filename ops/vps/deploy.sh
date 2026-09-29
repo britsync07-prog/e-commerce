@@ -57,6 +57,7 @@ export DATABASE_URL="${DATABASE_URL:-postgresql:///fcommerce?host=/var/run/postg
 export REDIS_URL="${REDIS_URL:-redis://localhost:6379}"
 export STORAGE_DRIVER="${STORAGE_DRIVER:-local}"
 export LOCAL_STORAGE_DIR="${LOCAL_STORAGE_DIR:-$APP_DIR/backend/storage}"
+pm2 stop "$BACKEND_APP" "$WORKER_APP" || true
 npm ci --include=dev
 npm run db:migrate
 npm run build
@@ -64,6 +65,7 @@ npm prune --omit=dev
 
 log "installing storefront dependencies"
 cd "$APP_DIR/storefront"
+pm2 stop "$STOREFRONT_APP" || true
 npm install --omit=dev
 
 log "restarting PM2 apps"
