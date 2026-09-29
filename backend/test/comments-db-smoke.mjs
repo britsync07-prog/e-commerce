@@ -24,7 +24,7 @@ try {
   const shopId = started.json().shop.id;
   const product = await app.inject({ method: "POST", url: `/api/v1/onboarding/${shopId}/products`, payload: { name: "Comment Shirt", price: 900, stock: 4 } });
   assert.equal(product.statusCode, 201, product.body);
-  const productId = product.json().product.id;
+  const productId = product.json().products[0].id;
 
   const post = await app.inject({ method: "POST", url: `/api/v1/comments/shops/${shopId}/posts`, headers: { authorization: `Bearer ${token}` }, payload: { platform: "facebook", externalPostId: `post-${stamp}`, caption: "New shirt", linkedProductId: productId } });
   assert.equal(post.statusCode, 201, post.body);
