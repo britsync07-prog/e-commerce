@@ -102,6 +102,15 @@ export const backendModules: BackendModule[] = [
     phase: "p0"
   },
   {
+    key: "comments",
+    name: "Comment automation and lead capture",
+    status: "active",
+    owns: ["social posts", "comment rules", "lead capture", "moderation queue", "reply previews"],
+    apiBase: "/api/v1/comments",
+    apiDoc: "comments.md",
+    phase: "p2"
+  },
+  {
     key: "orders",
     name: "Orders",
     status: "active",

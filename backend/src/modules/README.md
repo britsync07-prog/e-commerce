@@ -14,6 +14,7 @@ Planned folders:
 - `catalog`: products, variants, media.
 - `inventory`: stock ledger, reservations.
 - `inbox`: conversations, messages, assignments.
+- `comments`: social posts, comment rules, leads, moderation.
 - `orders`: draft/confirmed orders, timeline.
 - `delivery`: courier accounts, shipments, tracking.
 - `payments`: COD ledger, proofs, reconciliation.
@@ -24,4 +25,3 @@ Planned folders:
 - `settings`: policies, security, integrations.
 - `webhooks`: provider event intake.
 - `jobs`: queues, retries, dead letters.
-
