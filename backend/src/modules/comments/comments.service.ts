@@ -188,7 +188,7 @@ export async function ingestMetaCommentEvents(shopId: string, events: MetaCommen
     const captured = await captureComment(shopId, { postId: post.rows[0].id, platform: event.platform, externalCommentId: event.externalCommentId, commenterExternalId: event.commenterExternalId, commenterName: event.commenterName, commentText: event.commentText }, "system");
     results.push({ externalCommentId: event.externalCommentId, status: "captured", leadId: captured.lead.id });
   }
-  await db.query("insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'system', 'system', 'comment.meta_webhook_processed', 'shop', $1, $2)", [shopId, JSON.stringify({ total: events.length, captured: results.filter((result) => result.status === "captured").length })]);
+  await db.query("insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'system', 'system', 'comment.meta_webhook_processed', 'shop', $1::text, $2)", [shopId, JSON.stringify({ total: events.length, captured: results.filter((result) => result.status === "captured").length })]);
   return { processed: results };
 }
 
