@@ -21,7 +21,7 @@ Planned folders:
 - `customers`: profiles, addresses, tags, consent.
 - `marketing`: coupons, campaigns, broadcasts.
 - `analytics`: events, reports, dashboards.
-- `ai`: drafts, extraction, approvals.
+- `ai`: command drafts, extraction, approvals, ad creative drafts.
 - `settings`: policies, security, integrations.
 - `webhooks`: provider event intake.
 - `jobs`: queues, retries, dead letters.

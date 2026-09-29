@@ -27,6 +27,7 @@
     "test:meta-db": "npm run build && node test/meta-db-smoke.mjs",
     "test:comments-db": "npm run build && node test/comments-db-smoke.mjs",
     "test:ai-command-db": "npm run build && node test/ai-command-db-smoke.mjs",
+    "test:ai-creative-db": "npm run build && node test/ai-creative-db-smoke.mjs",
     "test:jobs-db": "npm run build && node test/jobs-db-smoke.mjs",
     "test:onboarding": "npm run build && node test/onboarding.integration.mjs"
   },
