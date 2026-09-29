@@ -5,7 +5,7 @@ Base path: `/api/v1/storefront`
 Purpose:
 - Public read API used by the live-test storefront renderer.
 - Looks up a launched PostgreSQL shop by subdomain.
-- Returns shop profile, selected template metadata, active products, and stock from inventory ledger.
+- Returns shop profile, published template/config metadata, active products, and stock from inventory ledger.
 
 Auth:
 - Public read.
@@ -40,11 +40,13 @@ Response:
       "returnDays": 3,
       "codAllowed": true
     },
-    "selectedTemplateId": "test-fashion-basic"
+    "selectedTemplateId": "fashion-editorial",
+    "publishVersion": 1,
+    "domainStatus": "ready"
   },
   "template": {
-    "id": "test-fashion-basic",
-    "status": "test_only"
+    "id": "fashion-editorial",
+    "status": "production"
   },
   "products": []
 }

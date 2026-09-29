@@ -54,8 +54,14 @@ export type StoreTemplate = {
   license: string;
   stack: string[];
   bestFor: string[];
+  sections?: string[];
+  defaultTheme?: {
+    accent: string;
+    background: string;
+    text: string;
+  };
   notes: string;
-  status: "test_only" | "candidate" | "reference_only";
+  status: "test_only" | "candidate" | "reference_only" | "production";
 };
 
 export type FirstProduct = {

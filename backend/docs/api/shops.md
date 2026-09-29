@@ -159,17 +159,45 @@ Request additions:
 ```json
 {
   "storefront": {
-    "templateId": "test-fashion-basic",
+    "templateId": "fashion-editorial",
     "theme": { "accent": "#111827", "background": "#ffffff", "text": "#111827" },
+    "banners": [{ "title": "New arrivals", "subtitle": "Fast COD delivery" }],
     "sections": ["hero", "products", "policies"],
-    "seo": { "title": "Nafis Fashion", "description": "Online shop" }
+    "seo": { "title": "Nafis Fashion", "description": "Online shop" },
+    "policies": { "shipping": "Ships inside Bangladesh.", "returns": "Returns accepted within policy window." }
   }
 }
 ```
 
-Side effects: updates selected template/config and writes `shop.settings_updated` audit data. Existing settings are preserved when only part of storefront config is sent.
+Side effects: updates selected production template/config and writes `shop.settings_updated` audit data. Existing settings are preserved when only part of storefront config is sent.
 
-Errors: `400 VALIDATION_ERROR`, `401 AUTH_REQUIRED`, `403 SHOP_ACCESS_DENIED`, `403 PERMISSION_DENIED`, `404 SHOP_NOT_FOUND`.
+Errors: `400 VALIDATION_ERROR`, `401 AUTH_REQUIRED`, `403 SHOP_ACCESS_DENIED`, `403 PERMISSION_DENIED`, `404 SHOP_NOT_FOUND`, `404 TEMPLATE_NOT_FOUND`.
+
+## `POST /:shopId/publish`
+
+Purpose: publish the current storefront draft as the buyer-facing snapshot.
+
+Auth/permission: bearer token required; requires `settings:write`.
+
+Rules: requires a production template plus SEO title/description and policy defaults.
+
+Response: `{ "publish": { "status": "launched", "publish_version": 2, "domain_status": "ready" } }`.
+
+Side effects: launches the shop if needed, increments `publish_version`, stores `published_storefront_config`, clears domain error, and writes `shop.storefront_published`.
+
+Errors: `PUBLISH_TEMPLATE_REQUIRED`, `PUBLISH_SEO_REQUIRED`, `PUBLISH_POLICY_REQUIRED`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
+
+## `POST /:shopId/domain/retry`
+
+Purpose: retry the shop subdomain/domain status check after a previous publish/domain failure.
+
+Auth/permission: bearer token required; requires `settings:write`.
+
+Response: `{ "domain": { "subdomain": "nafis-fashion", "domain_status": "ready", "domain_last_checked_at": "..." } }`.
+
+Side effects: updates domain status/check time and writes `shop.domain_retry`. Real external DNS provider verification is not connected yet.
+
+Errors: `SHOP_NOT_FOUND`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
 
 ## `POST /:shopId/team`
 

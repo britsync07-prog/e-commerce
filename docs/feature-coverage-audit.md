@@ -21,7 +21,7 @@ Generated from `pdfs/`, `tasks/`, `docs/`, backend routes, migrations, API docs,
 |---|---|---:|---|---|
 | 00 | Platform overview / roadmap | Partial | Multi-tenant users/shops, fixed roles, audit events, jobs, webhooks, AI command records, module registry. | Compliance tables are not explicit; AI action execution is not connected; full observability/error tracking is basic. |
 | 01 | Onboarding / store setup | Partial | Start onboarding, owner/shop creation, subdomain check, shop draft, first product, skip Meta, AI mode, template choice, launch guard, audit, auth verification/reset foundation. | No CSV/Excel onboarding import mapping UI/API; launch guard allows template-only future path while templates are still test-only. |
-| 02 | Website builder / themes / storefront | Partial | Storefront settings in shop settings, public shop lookup, product list/detail, checkout through orders API, tracking lookup. | No real theme builder or 5 production themes; no domain publish retry flow; SEO/policy data is only basic config. |
+| 02 | Website builder / themes / storefront | Partial | Storefront settings in shop settings, 5 production theme registry entries, SEO/policy/banners config, public shop/product reads, publish snapshot, domain retry status, checkout through orders API, tracking lookup. | No drag-drop builder V1 by design; custom domain provider verification is simulated until DNS/provider integration is connected. |
 | 03 | Products / inventory | Implemented | Products, variants, images, import/export, stock ledger, stock adjustments, SKU conflict handling, order snapshots, stock reservation/release. | Import accepts JSON rows, not native Excel/CSV upload parsing. |
 | 04 | AI inbox Messenger/Instagram | Partial | Conversations, messages, assignment, suggest-only AI drafts, confidence/source refs, review states, Meta webhook ingestion storage. | No outbound Meta send; no real LLM/provider; escalation is heuristic; auto-send intentionally absent. |
 | 05 | Comment automation / lead capture | Partial | Social posts, comment rules, safe previews, lead capture, customer merge by phone, moderation records, signed Meta comment webhook processing, queued action dispatch records, audit. | No outbound public reply/DM sender yet; queued sends are marked `not_connected` until a real Meta sender is configured. |
@@ -47,7 +47,6 @@ Generated from `pdfs/`, `tasks/`, `docs/`, backend routes, migrations, API docs,
 
 ## Next Build Order
 
-1. Close PDF 02 gaps: production themes/builder and publish/domain retry.
-2. Close PDF 08/11 integrations: real courier and Meta outbound workers.
-3. Close PDF 06 AI extraction and checkout-link expiry.
-4. Close PDF 12 provider integration after a real LLM/image provider is selected.
+1. Close PDF 08/11 integrations: real courier and Meta outbound workers.
+2. Close PDF 06 AI extraction and checkout-link expiry.
+3. Close PDF 12 provider integration after a real LLM/image provider is selected.

@@ -7,7 +7,8 @@ export async function registerStorefrontRoutes(app: FastifyInstance) {
     const { subdomain } = request.params as { subdomain: string };
     const shop = await db.query(
       `
-        select id, display_name, subdomain, category, country, currency, logo_url, language, policy_defaults, selected_template_id, storefront_config
+        select id, display_name, subdomain, category, country, currency, logo_url, language, policy_defaults,
+          selected_template_id, storefront_config, published_storefront_config, publish_version, published_at, domain_status
         from shops
         where subdomain = $1 and status = 'launched'
       `,
@@ -37,7 +38,8 @@ export async function registerStorefrontRoutes(app: FastifyInstance) {
       `,
       [shop.rows[0].id]
     );
-    const template = templateCatalog.find((item) => item.id === shop.rows[0].selected_template_id) ?? templateCatalog[0];
+    const template = templateCatalog.find((item) => item.id === shop.rows[0].selected_template_id) ?? templateCatalog.find((item) => item.status === "production") ?? templateCatalog[0];
+    const config = shop.rows[0].published_storefront_config ?? shop.rows[0].storefront_config;
 
     return {
       shop: {
@@ -51,7 +53,10 @@ export async function registerStorefrontRoutes(app: FastifyInstance) {
         language: shop.rows[0].language,
         policyDefaults: shop.rows[0].policy_defaults,
         selectedTemplateId: template.id,
-        config: shop.rows[0].storefront_config
+        config,
+        publishVersion: shop.rows[0].publish_version,
+        publishedAt: shop.rows[0].published_at,
+        domainStatus: shop.rows[0].domain_status
       },
       template,
       products: products.rows.map((product) => ({

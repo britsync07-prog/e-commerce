@@ -128,8 +128,8 @@ async function testTemplateCatalogAndSelection() {
   });
 
   assert.equal(catalog.statusCode, 200);
-  assert.equal(catalog.json().templates.length, 2);
-  assert.ok(catalog.json().templates.every((template) => template.status === "test_only"));
+  assert.equal(catalog.json().templates.length, 5);
+  assert.ok(catalog.json().templates.every((template) => template.status === "production"));
 
   const started = await app.inject({
     method: "POST",
@@ -150,12 +150,12 @@ async function testTemplateCatalogAndSelection() {
     method: "POST",
     url: `/api/v1/onboarding/${shopId}/template`,
     payload: {
-      templateId: "test-fashion-basic"
+      templateId: "fashion-editorial"
     }
   });
 
   assert.equal(selected.statusCode, 200);
-  assert.equal(selected.json().shop.selectedTemplateId, "test-fashion-basic");
+  assert.equal(selected.json().shop.selectedTemplateId, "fashion-editorial");
   assert.equal(selected.json().launchChecklist.hasTemplate, true);
 
   await app.close();

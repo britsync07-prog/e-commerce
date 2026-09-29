@@ -6,7 +6,7 @@ Purpose:
 - Powers the Shopify-style first setup flow: account, shop basics, products, channels, AI mode, launch.
 - Allows website-only launch when Meta is skipped.
 - Keeps draft state, audit events, and launch checklist.
-- Provides test-only template references for storefront selection.
+- Provides production template references for storefront selection.
 
 Auth:
 - `POST /start` can use `Authorization: Bearer <token>` to attach the shop to the logged-in owner.
@@ -57,15 +57,16 @@ Response:
 {
   "templates": [
     {
-      "id": "test-fashion-basic",
-      "name": "Test Fashion Basic",
+      "id": "fashion-editorial",
+      "name": "Fashion Editorial",
       "type": "storefront",
-      "sourceUrl": "internal:test-template",
-      "license": "Internal test-only, not for production",
-      "stack": ["Backend catalog metadata only"],
+      "sourceUrl": "internal:production-theme",
+      "license": "Internal production metadata",
+      "stack": ["Storefront renderer", "Backend catalog metadata"],
       "bestFor": ["fashion", "clothing", "beauty"],
-      "notes": "Basic test template for onboarding flow only. No external source code. Replace before production.",
-      "status": "test_only"
+      "sections": ["hero", "products", "policies", "contact"],
+      "defaultTheme": { "accent": "#111827", "background": "#ffffff", "text": "#111827" },
+      "status": "production"
     }
   ]
 }
@@ -260,7 +261,7 @@ Request:
 
 ```json
 {
-  "templateId": "test-fashion-basic"
+  "templateId": "fashion-editorial"
 }
 ```
 
@@ -288,7 +289,7 @@ Purpose:
 Rules:
 - Requires display name and subdomain.
 - Allows launch with first product.
-- Allows template-only launch later; templates are not built yet.
+- Allows template-only launch with production template metadata.
 
 Side effects:
 - Changes shop status to `launched`.

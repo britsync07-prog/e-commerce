@@ -3,6 +3,7 @@ import { z, ZodError, type ZodTypeAny } from "zod";
 import { PermissionError, publicRolePermissions, requireAuth, requireShopPermission } from "../../shared/permissions.js";
 import { db } from "../../shared/db.js";
 import { AuthError } from "../auth/auth.service.js";
+import { templateCatalog } from "../onboarding/template-catalog.js";
 
 const shopParamsSchema = z.object({
   shopId: z.string().uuid()
@@ -57,10 +58,22 @@ const updateSettingsSchema = z.object({
       text: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional()
     }).optional(),
     sections: z.array(z.enum(["hero", "products", "policies", "contact"])).max(10).optional(),
+    banners: z.array(z.object({
+      title: z.string().trim().min(1).max(120),
+      subtitle: z.string().trim().max(240).optional(),
+      imageUrl: z.string().trim().url().optional(),
+      actionLabel: z.string().trim().max(40).optional(),
+      actionUrl: z.string().trim().max(240).optional()
+    })).max(5).optional(),
     seo: z.object({
       title: z.string().trim().max(160).optional(),
       description: z.string().trim().max(320).optional(),
       shareImageUrl: z.string().trim().url().nullable().optional()
+    }).optional(),
+    policies: z.object({
+      shipping: z.string().trim().max(1000).optional(),
+      returns: z.string().trim().max(1000).optional(),
+      privacy: z.string().trim().max(1000).optional()
     }).optional()
   }).optional()
 });
@@ -242,6 +255,9 @@ export async function registerShopRoutes(app: FastifyInstance) {
       const params = parse(shopParamsSchema, request.params);
       const body = parse(updateSettingsSchema, request.body);
       const session = await requireShopPermission(request, params.shopId, "settings:write");
+      if (body.storefront?.templateId && !templateCatalog.some((template) => template.id === body.storefront?.templateId && template.status === "production")) {
+        throw new ShopError("Production storefront template not found.", 404, "TEMPLATE_NOT_FOUND");
+      }
       const current = await getSettings(params.shopId);
       const policyDefaults = { ...(current.settings.policy_defaults as Record<string, unknown>), ...(body.policyDefaults ?? {}) };
       const updated = await db.query(
@@ -287,6 +303,63 @@ export async function registerShopRoutes(app: FastifyInstance) {
     }
   });
 
+  app.post("/:shopId/publish", async (request, reply) => {
+    try {
+      const params = parse(shopParamsSchema, request.params);
+      const session = await requireShopPermission(request, params.shopId, "settings:write");
+      const settings = await getSettings(params.shopId);
+      const templateId = settings.settings.selected_template_id as string | null;
+      if (!templateId || !templateCatalog.some((template) => template.id === templateId && template.status === "production")) {
+        throw new ShopError("Select a production storefront template before publishing.", 409, "PUBLISH_TEMPLATE_REQUIRED");
+      }
+      const config = settings.settings.storefront_config as Record<string, unknown>;
+      const seo = (config.seo ?? {}) as Record<string, unknown>;
+      const policy = settings.settings.policy_defaults as Record<string, unknown>;
+      if (typeof seo.title !== "string" || typeof seo.description !== "string") throw new ShopError("SEO title and description are required before publishing.", 409, "PUBLISH_SEO_REQUIRED");
+      if (policy.codAllowed === undefined || policy.deliveryCharge === undefined || policy.returnDays === undefined) throw new ShopError("Policy defaults are required before publishing.", 409, "PUBLISH_POLICY_REQUIRED");
+      const result = await db.query(
+        `update shops
+         set status = 'launched',
+           publish_version = publish_version + 1,
+           published_storefront_config = storefront_config,
+           published_at = now(),
+           launched_at = coalesce(launched_at, now()),
+           domain_status = 'ready',
+           domain_error = null,
+           domain_last_checked_at = now(),
+           updated_at = now()
+         where id = $1
+         returning id, status, publish_version, domain_status, published_at`,
+        [params.shopId]
+      );
+      await audit(params.shopId, session.user.id as string, "shop.storefront_published", "shop", params.shopId, { publishVersion: result.rows[0].publish_version });
+      return { publish: result.rows[0] };
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.post("/:shopId/domain/retry", async (request, reply) => {
+    try {
+      const params = parse(shopParamsSchema, request.params);
+      const session = await requireShopPermission(request, params.shopId, "settings:write");
+      const result = await db.query(
+        `update shops
+         set domain_status = 'ready', domain_error = null, domain_last_checked_at = now(), updated_at = now()
+         where id = $1
+         returning id, subdomain, domain_status, domain_last_checked_at`,
+        [params.shopId]
+      );
+      if (!result.rowCount) throw new ShopError("Shop not found.", 404, "SHOP_NOT_FOUND");
+      await audit(params.shopId, session.user.id as string, "shop.domain_retry", "shop", params.shopId, { status: result.rows[0].domain_status });
+      return { domain: result.rows[0] };
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
   app.get("/:shopId/audit", async (request, reply) => {
     try {
       const params = parse(shopParamsSchema, request.params);
@@ -320,7 +393,8 @@ async function getSettings(shopId: string) {
   const result = await db.query(
     `
       select id, display_name, legal_name, subdomain, category, country, currency, language, address, logo_url,
-        policy_defaults, ai_mode, status, selected_template_id, storefront_config, updated_at
+        policy_defaults, ai_mode, status, selected_template_id, storefront_config, domain_status, domain_last_checked_at,
+        domain_error, publish_version, published_storefront_config, published_at, updated_at
       from shops
       where id = $1
     `,

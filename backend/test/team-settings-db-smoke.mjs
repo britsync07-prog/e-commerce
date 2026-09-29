@@ -93,11 +93,38 @@ try {
     method: "PATCH",
     url: `/api/v1/shops/${shopId}/settings`,
     headers: { authorization: `Bearer ${ownerToken}` },
-    payload: { displayName: "Updated Team Shop", policyDefaults: { deliveryCharge: 80, returnDays: 7, codAllowed: true } }
+    payload: {
+      displayName: "Updated Team Shop",
+      policyDefaults: { deliveryCharge: 80, returnDays: 7, codAllowed: true },
+      storefront: {
+        templateId: "fashion-editorial",
+        theme: { accent: "#111827", background: "#ffffff", text: "#111827" },
+        sections: ["hero", "products", "policies", "contact"],
+        banners: [{ title: "New arrivals", subtitle: "Fast COD delivery" }],
+        seo: { title: "Updated Team Shop", description: "Production storefront smoke shop" },
+        policies: { shipping: "Ships inside Bangladesh.", returns: "Returns accepted within policy window." }
+      }
+    }
   });
   assert.equal(settings.statusCode, 200, settings.body);
   assert.equal(settings.json().settings.display_name, "Updated Team Shop");
   assert.equal(Number(settings.json().settings.policy_defaults.deliveryCharge), 80);
+  assert.equal(settings.json().settings.selected_template_id, "fashion-editorial");
+  assert.equal(settings.json().settings.storefront_config.seo.title, "Updated Team Shop");
+
+  const publish = await app.inject({ method: "POST", url: `/api/v1/shops/${shopId}/publish`, headers: { authorization: `Bearer ${ownerToken}` } });
+  assert.equal(publish.statusCode, 200, publish.body);
+  assert.equal(publish.json().publish.status, "launched");
+  assert.equal(publish.json().publish.domain_status, "ready");
+
+  const retriedDomain = await app.inject({ method: "POST", url: `/api/v1/shops/${shopId}/domain/retry`, headers: { authorization: `Bearer ${ownerToken}` } });
+  assert.equal(retriedDomain.statusCode, 200, retriedDomain.body);
+  assert.equal(retriedDomain.json().domain.domain_status, "ready");
+
+  const publicStorefront = await app.inject({ method: "GET", url: `/api/v1/storefront/team-settings-${stamp}` });
+  assert.equal(publicStorefront.statusCode, 200, publicStorefront.body);
+  assert.equal(publicStorefront.json().template.id, "fashion-editorial");
+  assert.equal(publicStorefront.json().shop.config.seo.title, "Updated Team Shop");
 
   const billing = await app.inject({ method: "GET", url: `/api/v1/shops/${shopId}/billing`, headers: { authorization: `Bearer ${ownerToken}` } });
   assert.equal(billing.statusCode, 200, billing.body);
