@@ -1,3 +1,19 @@
+do $$
+begin
+  if to_regclass('public.ai_brand_rules') is null and exists (select 1 from pg_type t join pg_namespace n on n.oid = t.typnamespace where n.nspname = 'public' and t.typname = 'ai_brand_rules') then
+    drop type public.ai_brand_rules cascade;
+  end if;
+  if to_regclass('public.ai_creative_templates') is null and exists (select 1 from pg_type t join pg_namespace n on n.oid = t.typnamespace where n.nspname = 'public' and t.typname = 'ai_creative_templates') then
+    drop type public.ai_creative_templates cascade;
+  end if;
+  if to_regclass('public.ai_ad_creative_requests') is null and exists (select 1 from pg_type t join pg_namespace n on n.oid = t.typnamespace where n.nspname = 'public' and t.typname = 'ai_ad_creative_requests') then
+    drop type public.ai_ad_creative_requests cascade;
+  end if;
+  if to_regclass('public.ai_ad_creative_outputs') is null and exists (select 1 from pg_type t join pg_namespace n on n.oid = t.typnamespace where n.nspname = 'public' and t.typname = 'ai_ad_creative_outputs') then
+    drop type public.ai_ad_creative_outputs cascade;
+  end if;
+end $$;
+
 create table if not exists ai_brand_rules (
   id uuid primary key default gen_random_uuid(),
   shop_id uuid not null references shops(id) on delete cascade,
