@@ -5,13 +5,15 @@ Base path: `/api/v1/auth`
 Purpose:
 - Registers owner/staff users.
 - Logs users in with password credentials.
+- Verifies email/phone ownership with one-time codes.
+- Starts and confirms password reset with one-time codes.
 - Issues revocable bearer sessions.
 - Returns current session user.
 
 Auth:
 - `POST /register` and `POST /login` are public.
-- `GET /me` and `POST /logout` require `Authorization: Bearer <token>`.
-- Production rule: add email/phone verification before sensitive access.
+- `POST /verification/confirm`, `POST /password-reset/request`, and `POST /password-reset/confirm` are public.
+- `GET /me`, `POST /logout`, `GET /sessions`, `POST /sessions/:sessionId/revoke`, and `POST /verification/request` require `Authorization: Bearer <token>`.
 
 ## `POST /register`
 
@@ -38,6 +40,8 @@ Response:
     "phone": null,
     "language": "en",
     "status": "active",
+    "email_verified_at": null,
+    "phone_verified_at": null,
     "created_at": "2026-09-27T00:00:00.000Z"
   }
 }
@@ -56,6 +60,171 @@ Errors:
 - `400 VALIDATION_ERROR`
 - `409 USER_EXISTS`
 - `429 RATE_LIMITED` after 5 registrations from one IP in 15 minutes
+
+## `POST /verification/request`
+
+Purpose: Create a 10-minute email or phone verification challenge for the authenticated user.
+
+Auth: Bearer session required.
+
+Request:
+
+```json
+{
+  "channel": "email"
+}
+```
+
+Response:
+- `201`
+
+```json
+{
+  "challenge": {
+    "id": "uuid",
+    "purpose": "email_verification",
+    "destination_type": "email",
+    "expires_at": "2026-09-29T00:10:00.000Z"
+  },
+  "delivery": {
+    "status": "queued",
+    "provider": "not_connected"
+  }
+}
+```
+
+Side effects:
+- Expires older pending verification challenges for that user and channel.
+- Inserts `auth_challenges`.
+
+Audit/timeline: Writes `auth_events.verification_requested`.
+
+Cache: Do not cache.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `401 SESSION_INVALID`
+- `409 CONTACT_METHOD_MISSING`
+- `429 RATE_LIMITED`
+
+## `POST /verification/confirm`
+
+Purpose: Confirm an email or phone verification challenge.
+
+Auth: Public. The challenge id and code are required.
+
+Request:
+
+```json
+{
+  "challengeId": "uuid",
+  "code": "123456"
+}
+```
+
+Response:
+
+```json
+{
+  "ok": true,
+  "user": {
+    "id": "uuid",
+    "email_verified_at": "2026-09-29T00:05:00.000Z"
+  }
+}
+```
+
+Side effects:
+- Marks the challenge used.
+- Sets `users.email_verified_at` or `users.phone_verified_at`.
+
+Audit/timeline: Writes `auth_events.email_verified` or `auth_events.phone_verified`.
+
+Cache: Refresh current user state after success.
+
+Errors:
+- `400 AUTH_CODE_INVALID`
+- `400 VALIDATION_ERROR`
+- `429 RATE_LIMITED`
+
+## `POST /password-reset/request`
+
+Purpose: Create a 10-minute password reset challenge for an existing user without exposing whether the identifier exists.
+
+Auth: Public.
+
+Request:
+
+```json
+{
+  "identifier": "nafis@example.com"
+}
+```
+
+Response:
+
+```json
+{
+  "ok": true,
+  "delivery": {
+    "status": "queued",
+    "provider": "not_connected"
+  }
+}
+```
+
+Side effects:
+- If the user exists, expires older pending reset challenges and inserts `auth_challenges`.
+- If the user does not exist, no database write is required.
+
+Audit/timeline: Writes `auth_events.password_reset_requested` only when a matching user exists.
+
+Cache: Do not cache.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `429 RATE_LIMITED`
+
+## `POST /password-reset/confirm`
+
+Purpose: Confirm a password reset code and replace the user's password.
+
+Auth: Public.
+
+Request:
+
+```json
+{
+  "identifier": "nafis@example.com",
+  "code": "123456",
+  "newPassword": "new-strong-password"
+}
+```
+
+Response:
+
+```json
+{
+  "ok": true
+}
+```
+
+Side effects:
+- Marks the reset challenge used.
+- Stores the new password as salted `scrypt` hash.
+- Sets `users.password_changed_at`.
+- Marks the reset channel verified if it was not verified yet.
+- Revokes all existing sessions for that user.
+
+Audit/timeline: Writes `auth_events.password_reset_completed`.
+
+Cache: Clear client session state and ask the user to sign in again.
+
+Errors:
+- `400 AUTH_CODE_INVALID`
+- `400 VALIDATION_ERROR`
+- `429 RATE_LIMITED`
 
 ## `POST /login`
 
@@ -151,8 +320,7 @@ Response:
 Side effects:
 - Sets `user_sessions.revoked_at`.
 
-Audit/timeline:
-- None yet. Add `auth.logout` audit after auth actor model is shared.
+Audit/timeline: Writes `auth_events.logout` when an active session was revoked.
 
 Cache:
 - Clear client session state.

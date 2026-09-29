@@ -21,7 +21,8 @@ const schema = z.object({
   META_OAUTH_REDIRECT_URI: z.string().url().optional(),
   META_OAUTH_SCOPES: z.string().default("pages_show_list,pages_read_engagement,pages_manage_metadata"),
   META_GRAPH_VERSION: z.string().regex(/^v\d+\.\d+$/).default("v23.0"),
-  META_TOKEN_ENCRYPTION_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/).optional()
+  META_TOKEN_ENCRYPTION_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/).optional(),
+  AUTH_OTP_SECRET: z.string().min(32).optional()
 });
 
 const env = schema.parse(process.env);
@@ -44,5 +45,6 @@ export const config = {
   metaOAuthRedirectUri: env.META_OAUTH_REDIRECT_URI,
   metaOAuthScopes: env.META_OAUTH_SCOPES,
   metaGraphVersion: env.META_GRAPH_VERSION,
-  metaTokenEncryptionKey: env.META_TOKEN_ENCRYPTION_KEY
+  metaTokenEncryptionKey: env.META_TOKEN_ENCRYPTION_KEY,
+  authOtpSecret: env.AUTH_OTP_SECRET
 };

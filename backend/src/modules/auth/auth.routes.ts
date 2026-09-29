@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z, ZodError, type ZodTypeAny } from "zod";
-import { AuthError, bearerToken, getSession, listSessions, login, logout, registerUser, revokeSession } from "./auth.service.js";
-import { loginSchema, registerSchema } from "./auth.validators.js";
+import { AuthError, bearerToken, confirmPasswordReset, confirmVerification, getSession, listSessions, login, logout, registerUser, requestPasswordReset, requestVerification, revokeSession } from "./auth.service.js";
+import { loginSchema, passwordResetConfirmSchema, passwordResetRequestSchema, registerSchema, verificationConfirmSchema, verificationRequestSchema } from "./auth.validators.js";
 
 function parse<T extends ZodTypeAny>(schema: T, value: unknown) {
   return schema.parse(value) as T["_output"];
@@ -54,6 +54,48 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       return reply.code(result.statusCode).send(result.body);
     }
   });
+
+  app.post("/verification/request", { config: { rateLimit: { max: 5, timeWindow: "15 minutes" } } }, async (request, reply) => {
+    try {
+      const session = await getSession(bearerToken(request.headers.authorization));
+      const body = parse(verificationRequestSchema, request.body);
+      return reply.code(201).send(await requestVerification(session.user.id as string, body.channel));
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.post("/verification/confirm", { config: { rateLimit: { max: 10, timeWindow: "15 minutes" } } }, async (request, reply) => {
+    try {
+      const body = parse(verificationConfirmSchema, request.body);
+      return confirmVerification(body);
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.post("/password-reset/request", { config: { rateLimit: { max: 5, timeWindow: "15 minutes" } } }, async (request, reply) => {
+    try {
+      const body = parse(passwordResetRequestSchema, request.body);
+      return requestPasswordReset(body.identifier, { userAgent: request.headers["user-agent"], ipAddress: request.ip });
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.post("/password-reset/confirm", { config: { rateLimit: { max: 10, timeWindow: "15 minutes" } } }, async (request, reply) => {
+    try {
+      const body = parse(passwordResetConfirmSchema, request.body);
+      return confirmPasswordReset(body, { userAgent: request.headers["user-agent"], ipAddress: request.ip });
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
   app.get("/sessions", async (request, reply) => {
     try { const session = await getSession(bearerToken(request.headers.authorization)); return listSessions(session.user.id as string); }
     catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }

@@ -13,3 +13,21 @@ export const loginSchema = z.object({
   password: z.string().min(1).max(200)
 });
 
+export const verificationRequestSchema = z.object({
+  channel: z.enum(["email", "phone"])
+});
+
+export const verificationConfirmSchema = z.object({
+  challengeId: z.string().uuid(),
+  code: z.string().trim().regex(/^\d{6}$/)
+});
+
+export const passwordResetRequestSchema = z.object({
+  identifier: z.string().trim().min(3).max(180)
+});
+
+export const passwordResetConfirmSchema = z.object({
+  identifier: z.string().trim().min(3).max(180),
+  code: z.string().trim().regex(/^\d{6}$/),
+  newPassword: z.string().min(8).max(200)
+});
