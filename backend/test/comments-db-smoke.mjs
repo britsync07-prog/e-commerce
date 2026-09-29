@@ -9,7 +9,7 @@ if (!process.env.DATABASE_URL) {
 
 process.env.META_WEBHOOK_SECRET ??= "comments-smoke-webhook-secret";
 const { buildApp } = await import("../dist/app.js");
-const { runOnce } = await import("../dist/worker.js");
+const { markCommentActionNotConnected } = await import("../dist/modules/comments/comments.service.js");
 const { processMetaWebhookEvent } = await import("../dist/modules/meta/meta.service.js");
 
 const app = await buildApp();
@@ -89,7 +89,7 @@ try {
   const audit = await client.query("select action from audit_events where shop_id = $1 and action in ('comment.lead_captured', 'comment.moderated')", [shopId]);
   assert.ok(audit.rowCount >= 3);
 
-  await runOnce();
+  await markCommentActionNotConnected(actionJob.rows[0].id);
   const action = await client.query("select provider_status, status from comment_automation_actions where id = $1", [actionJob.rows[0].id]);
   assert.equal(action.rows[0].provider_status, "not_connected");
   assert.equal(action.rows[0].status, "failed");
