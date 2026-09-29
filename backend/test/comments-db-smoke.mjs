@@ -10,6 +10,7 @@ if (!process.env.DATABASE_URL) {
 process.env.META_WEBHOOK_SECRET ??= "comments-smoke-webhook-secret";
 const { buildApp } = await import("../dist/app.js");
 const { runOnce } = await import("../dist/worker.js");
+const { processMetaWebhookEvent } = await import("../dist/modules/meta/meta.service.js");
 
 const app = await buildApp();
 const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
@@ -97,9 +98,11 @@ try {
   const signature = `sha256=${createHmac("sha256", process.env.META_WEBHOOK_SECRET).update(JSON.stringify(webhookPayload)).digest("hex")}`;
   const webhook = await app.inject({ method: "POST", url: `/api/v1/webhooks/meta/${shopId}`, headers: { "x-hub-signature-256": signature, "x-meta-event-id": `comments-${stamp}` }, payload: webhookPayload });
   assert.equal(webhook.statusCode, 200, webhook.body);
-  for (let i = 0; i < 6; i += 1) await runOnce();
-  const webhookEvent = await client.query("select status from webhook_events where provider_event_id = $1", [`comments-${stamp}`]);
-  assert.equal(webhookEvent.rows[0].status, "processed");
+  const webhookEvent = await client.query("select id, status from webhook_events where provider_event_id = $1", [`comments-${stamp}`]);
+  assert.equal(webhookEvent.rows[0].status, "pending");
+  await processMetaWebhookEvent(webhookEvent.rows[0].id);
+  const processedWebhookEvent = await client.query("select status from webhook_events where id = $1", [webhookEvent.rows[0].id]);
+  assert.equal(processedWebhookEvent.rows[0].status, "processed");
   const webhookLead = await client.query("select id from comment_leads where shop_id = $1 and external_comment_id = $2", [shopId, `webhook-${stamp}`]);
   assert.equal(webhookLead.rowCount, 1);
   console.log("Comments DB smoke passed.");
