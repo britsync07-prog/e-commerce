@@ -94,15 +94,7 @@ export class OnboardingService {
       await client.query("begin");
       const owner = input.ownerUserId
         ? await client.query("select id from users where id = $1", [input.ownerUserId])
-        : await client.query(
-            `
-              insert into users (name, email, phone, language)
-              values ($1, $2, $3, $4)
-              on conflict (email) do update set name = excluded.name
-              returning id
-            `,
-            [input.ownerName, input.email?.toLowerCase() ?? null, input.phone ?? null, input.language]
-          );
+        : await findOrCreateOwner(client, input);
 
       if (!owner.rowCount) throw new OnboardingError("Owner not found.", 404, "OWNER_NOT_FOUND");
 
@@ -134,7 +126,8 @@ export class OnboardingService {
       return this.getState(shop.rows[0].id);
     } catch (error) {
       await client.query("rollback");
-      if (isUniqueViolation(error)) throw new OnboardingError("Subdomain is not available.", 409, "SUBDOMAIN_TAKEN");
+      if (isUniqueViolation(error, "shops_subdomain_key")) throw new OnboardingError("Subdomain is not available.", 409, "SUBDOMAIN_TAKEN");
+      if (isUniqueViolation(error)) throw new OnboardingError("Owner email or phone already exists.", 409, "OWNER_EXISTS");
       throw error;
     } finally {
       client.release();
@@ -236,7 +229,7 @@ export class OnboardingService {
       return this.getState(shopId);
     } catch (error) {
       await client.query("rollback");
-      if (isUniqueViolation(error)) throw new OnboardingError("Subdomain is not available.", 409, "SUBDOMAIN_TAKEN");
+      if (isUniqueViolation(error, "shops_subdomain_key")) throw new OnboardingError("Subdomain is not available.", 409, "SUBDOMAIN_TAKEN");
       throw error;
     } finally {
       client.release();
@@ -457,6 +450,36 @@ function mapAudit(row: Record<string, unknown>): AuditEvent {
   };
 }
 
-function isUniqueViolation(error: unknown) {
-  return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
+async function findOrCreateOwner(
+  client: Pick<typeof db, "query">,
+  input: { ownerName: string; email?: string; phone?: string; language: Owner["language"] }
+) {
+  const email = input.email?.toLowerCase() ?? null;
+  const phone = input.phone ?? null;
+  if (email || phone) {
+    const existing = await client.query("select id from users where ($1::text is not null and email = $1) or ($2::text is not null and phone = $2) limit 1", [
+      email,
+      phone
+    ]);
+    if (existing.rowCount) return existing;
+  }
+
+  return client.query(
+    `
+      insert into users (name, email, phone, language)
+      values ($1, $2, $3, $4)
+      returning id
+    `,
+    [input.ownerName, email, phone, input.language]
+  );
+}
+
+function isUniqueViolation(error: unknown, constraint?: string) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "23505" &&
+    (!constraint || ("constraint" in error && error.constraint === constraint))
+  );
 }
