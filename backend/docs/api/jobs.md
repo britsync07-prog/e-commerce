@@ -6,7 +6,7 @@ Auth: Bearer session. Enqueue/retry requires `settings:write`; listing requires 
 
 ## `POST /shops/:shopId/jobs`
 
-Request: `{ "queue": "imports|ai|webhooks|courier|payments|exports|analytics", "jobType": "meta.catalog.sync", "payload": {}, "maxAttempts": 5 }`.
+Request: `{ "queue": "imports|ai|webhooks|courier|payments|exports|analytics", "jobType": "meta.catalog.sync|courier.shipment.book", "payload": {}, "maxAttempts": 5 }`.
 
 Response: `201` with the pending job.
 
@@ -90,7 +90,7 @@ Request: `{ "reason": "Provider outage resolved; retry the import" }`.
 
 Response: Job reset to `pending` with attempts reset to zero.
 
-Side effects: Only dead jobs can be manually requeued. Workers claim jobs with row locks, recover stale running locks after 5 minutes, back off retryable failures, and move exhausted/non-retryable failures to `dead`.
+Side effects: Only dead jobs can be manually requeued. Workers claim jobs with row locks, recover stale running locks after 5 minutes, back off retryable failures, and move exhausted/non-retryable failures to `dead`. Provider foundations currently complete courier/Meta jobs by marking the domain record `not_connected`/`failed` until credentials and provider adapters are connected.
 
 Audit/timeline: Writes `job.retried` audit with the operator reason.
 

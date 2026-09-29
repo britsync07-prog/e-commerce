@@ -27,10 +27,10 @@ Generated from `pdfs/`, `tasks/`, `docs/`, backend routes, migrations, API docs,
 | 05 | Comment automation / lead capture | Partial | Social posts, comment rules, safe previews, lead capture, customer merge by phone, moderation records, signed Meta comment webhook processing, queued action dispatch records, audit. | No outbound public reply/DM sender yet; queued sends are marked `not_connected` until a real Meta sender is configured. |
 | 06 | AI order confirmation / checkout forms | Partial | Order drafts, confidence/risk fields, missing-field validation, checkout, draft confirm, stock checks, cancellation keeps history. | No real AI extractor; no checkout-link expiry table/flow exposed. |
 | 07 | Orders dashboard | Partial | Order list/detail, drafts, status pipeline, timeline, permission checks, status reason rules, stock release on cancel/return. | No bulk print/book/export endpoint; issue queue is limited to related delivery/payment records. |
-| 08 | Delivery / courier | Partial | Manual courier booking, shipments, tracking events, failed delivery records, reschedule flow, order timeline/audit sync. | No courier API credential test/connect; no provider webhook preference/conflict resolution; no manual booking sheet export. |
+| 08 | Delivery / courier | Partial | Manual courier booking, courier accounts/test status, queued API booking jobs, provider `not_connected` fallback, shipments, tracking events, failed delivery records, webhook-preferred status guard, reschedule flow, order timeline/audit sync. | No real courier provider adapter yet; no manual booking sheet export. |
 | 09 | Payments / COD reconciliation | Implemented | Manual/COD payment records, proof asset reference, immutable payment events, refunds, COD settlements, unmatched rows, idempotency, audit/timeline. | Real payment gateway/bank confirmation intentionally not connected. |
 | 10 | Customers / CRM / coupons / retention | Partial | Customers, addresses, tags, consent, merge preview/apply, coupons, saved segments, broadcast drafts/previews/approval, retention report. | No actual campaign sender; no advanced retention automation. |
-| 11 | Ads tracking / Meta CAPI | Partial | Meta connections/OAuth shape, encrypted token storage path, catalog sync config/preview, campaign stats import/report, delivered-vs-placed revenue. | No outbound CAPI/catalog worker; real Meta app credentials required on VPS. |
+| 11 | Ads tracking / Meta CAPI | Partial | Meta connections/OAuth shape, encrypted token storage path, catalog sync config/preview, queued catalog worker fallback, campaign stats import/report, delivered-vs-placed revenue. | No outbound CAPI/catalog provider adapter yet; real Meta app credentials required on VPS. |
 | 12 | AI ad creative studio | Partial | Brand rules, saved templates, creative request/output storage, deterministic review-only drafts, safety warnings/blocks. | No real LLM/image generation provider; no ad-platform publishing; no competitor-text ingestion by design. |
 | 13 | AI command center | Partial | Command records, risk classifier, citations, approval flow, audit, permission guard. | Approved actions do not execute; no undo/rollback executors. |
 | 14 | Analytics dashboard | Partial | Metrics, orders report/export, analytics events, zero-state metrics, chart drill-down events. | AI insight generation is not connected; advanced dashboards are basic. |
@@ -47,6 +47,6 @@ Generated from `pdfs/`, `tasks/`, `docs/`, backend routes, migrations, API docs,
 
 ## Next Build Order
 
-1. Close PDF 08/11 integrations: real courier and Meta outbound workers.
-2. Close PDF 06 AI extraction and checkout-link expiry.
+1. Close PDF 06 AI extraction and checkout-link expiry.
+2. Close real courier/Meta provider adapters after credentials are available.
 3. Close PDF 12 provider integration after a real LLM/image provider is selected.

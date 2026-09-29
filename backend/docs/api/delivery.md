@@ -13,6 +13,38 @@ Auth:
 - Read endpoints require `delivery:read`.
 - Write endpoints require `delivery:write`.
 
+## `GET /shops/:shopId/courier-accounts`
+
+Purpose: list courier/manual provider accounts configured for the shop.
+
+Response: `{ "accounts": [{ "id": "uuid", "provider": "pathao", "status": "active", "hasCredential": true }] }`.
+
+Side effects: none.
+
+Errors: `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
+
+## `POST /shops/:shopId/courier-accounts`
+
+Purpose: create a courier account record and test whether it has enough credential reference data for queued API booking.
+
+Request: `{ "provider": "pathao", "displayName": "Pathao API", "credentialRef": "vault:pathao-main", "settings": { "city": "Dhaka" } }`.
+
+Response: `201` with `{ "account": { "status": "active", "hasCredential": true } }`. Non-manual accounts without `credentialRef` are saved as `failed`.
+
+Side effects: writes `courier.account_created`; no external courier API is called in this phase.
+
+Errors: `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
+
+## `POST /shops/:shopId/courier-accounts/:accountId/test`
+
+Purpose: retry credential validation for a configured courier account.
+
+Response: `{ "connected": true, "account": { "status": "active" } }` for manual accounts or accounts with a credential reference; otherwise `connected: false` and status `failed`.
+
+Side effects: updates `last_tested_at`, `last_error`, account status, and writes `courier.account_tested`.
+
+Errors: `COURIER_ACCOUNT_NOT_FOUND`, `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
+
 ## `GET /shops/:shopId/shipments`
 
 Request:
@@ -104,13 +136,25 @@ Errors:
 - `409 SHIPMENT_ALREADY_EXISTS`
 - `409 ORDER_STATUS_INVALID`
 
+## `POST /shops/:shopId/shipments/api`
+
+Purpose: queue a provider courier booking from a connected courier account.
+
+Request: `{ "orderId": "uuid", "courierAccountId": "uuid", "fee": 80, "note": "Book Pathao" }`.
+
+Response: `201`, same shipment detail shape, with `booking_source: "api"` and `provider_status: "queued"`.
+
+Side effects: validates packed order plus buyer phone/address, creates shipment/tracking rows, enqueues `courier.shipment.book`, moves the order to shipped, and writes `shipment.api_booking_queued`. Worker marks the shipment `not_connected` until a real provider adapter is configured.
+
+Errors: `COURIER_ACCOUNT_NOT_FOUND`, `COURIER_ACCOUNT_NOT_CONNECTED`, `ORDER_NOT_FOUND`, `ORDER_NOT_PACKED`, `SHIPMENT_ADDRESS_INCOMPLETE`, `SHIPMENT_ALREADY_EXISTS`.
+
 ## Failed delivery and rescheduling
 
 ### `PATCH /shops/:shopId/shipments/:shipmentId/status` with `status: "failed"`
 
 Request: Include a required `note` describing the failure. Optional `contactResult` records the buyer contact outcome and optional `rescheduleDate` records a date already agreed with the buyer.
 
-Side effects: Creates a `failed_deliveries` issue with status `open`, records the tracking event, and writes `shipment.status_updated` audit metadata. The failed issue remains visible in shipment detail until returned or rescheduled.
+Side effects: Creates a `failed_deliveries` issue with status `open`, records the tracking event, and writes `shipment.status_updated` audit metadata. The failed issue remains visible in shipment detail until returned or rescheduled. Manual updates are rejected when a newer webhook status exists.
 
 ### `POST /shops/:shopId/shipments/:shipmentId/reschedule`
 
@@ -230,4 +274,5 @@ Errors:
 - `404 SHIPMENT_NOT_FOUND`
 - `409 SHIPMENT_STATUS_UNCHANGED`
 - `409 SHIPMENT_STATUS_INVALID`
+- `409 SHIPMENT_WEBHOOK_STATUS_AUTHORITATIVE`
 - `409 ORDER_STATUS_INVALID`

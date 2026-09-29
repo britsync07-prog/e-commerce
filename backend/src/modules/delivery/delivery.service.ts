@@ -96,6 +96,38 @@ export async function listShipments(shopId: string, input: { status?: string; li
   return { shipments: shipments.rows };
 }
 
+export async function listCourierAccounts(shopId: string) {
+  const result = await db.query("select id, shop_id, provider, display_name, status, credential_ref, settings, last_tested_at, last_error, created_at, updated_at from courier_accounts where shop_id = $1 order by created_at desc", [shopId]);
+  return { accounts: result.rows.map((row) => ({ ...row, hasCredential: Boolean(row.credential_ref) })) };
+}
+
+export async function createCourierAccount(shopId: string, input: { provider: string; displayName: string; credentialRef?: string; settings: Record<string, unknown> }, actorId: string) {
+  const status = input.provider === "manual" || input.credentialRef ? "active" : "failed";
+  const lastError = status === "failed" ? "COURIER_CREDENTIAL_REQUIRED" : null;
+  const result = await db.query(
+    `insert into courier_accounts (shop_id, provider, display_name, status, credential_ref, settings, last_tested_at, last_error)
+     values ($1, $2, $3, $4, $5, $6, now(), $7)
+     returning id, shop_id, provider, display_name, status, credential_ref, settings, last_tested_at, last_error, created_at, updated_at`,
+    [shopId, input.provider, input.displayName, status, input.credentialRef ?? null, JSON.stringify(input.settings), lastError]
+  );
+  await audit(shopId, actorId, "courier.account_created", "courier_account", result.rows[0].id, { provider: input.provider, status });
+  return { account: { ...result.rows[0], hasCredential: Boolean(result.rows[0].credential_ref) } };
+}
+
+export async function testCourierAccount(shopId: string, accountId: string, actorId: string) {
+  const account = await db.query("select id, provider, credential_ref from courier_accounts where shop_id = $1 and id = $2", [shopId, accountId]);
+  if (!account.rowCount) throw new DeliveryError("Courier account not found.", 404, "COURIER_ACCOUNT_NOT_FOUND");
+  const connected = account.rows[0].provider === "manual" || Boolean(account.rows[0].credential_ref);
+  const result = await db.query(
+    `update courier_accounts set status = $3, last_tested_at = now(), last_error = $4, updated_at = now()
+     where shop_id = $1 and id = $2
+     returning id, provider, display_name, status, last_tested_at, last_error`,
+    [shopId, accountId, connected ? "active" : "failed", connected ? null : "COURIER_NOT_CONNECTED"]
+  );
+  await audit(shopId, actorId, "courier.account_tested", "courier_account", accountId, { connected });
+  return { account: result.rows[0], connected };
+}
+
 export async function getShipment(shopId: string, shipmentId: string) {
   const shipment = await db.query(
     `
@@ -168,6 +200,59 @@ export async function createManualShipment(
   return getShipment(shopId, shipmentId);
 }
 
+export async function createApiShipment(
+  shopId: string,
+  input: { orderId: string; courierAccountId: string; fee: number; note?: string },
+  actorId: string
+) {
+  const client = await db.connect();
+  let shipmentId = "";
+  try {
+    await client.query("begin");
+    const account = await client.query("select id, provider, display_name, status from courier_accounts where shop_id = $1 and id = $2 for update", [shopId, input.courierAccountId]);
+    if (!account.rowCount) throw new DeliveryError("Courier account not found.", 404, "COURIER_ACCOUNT_NOT_FOUND");
+    if (account.rows[0].status !== "active") throw new DeliveryError("Courier account is not connected.", 409, "COURIER_ACCOUNT_NOT_CONNECTED");
+    const order = await client.query("select id, status, buyer_snapshot from orders where shop_id = $1 and id = $2 for update", [shopId, input.orderId]);
+    if (!order.rowCount) throw new DeliveryError("Order not found.", 404, "ORDER_NOT_FOUND");
+    if (order.rows[0].status !== "packed") throw new DeliveryError("Order must be packed before shipment.", 409, "ORDER_NOT_PACKED");
+    const buyer = order.rows[0].buyer_snapshot as { phone?: string; address?: string };
+    if (!buyer.phone || !buyer.address) throw new DeliveryError("Order needs phone and address before shipment.", 409, "SHIPMENT_ADDRESS_INCOMPLETE");
+
+    const shipment = await client.query(
+      `insert into shipments (shop_id, order_id, courier_account_id, provider, status, courier_name, fee, booking_source, booked_by, provider_status, metadata)
+       values ($1, $2, $3, $4, 'booked', $5, $6, 'api', $7, 'queued', $8)
+       returning id`,
+      [shopId, input.orderId, input.courierAccountId, account.rows[0].provider, account.rows[0].display_name, input.fee, actorId, JSON.stringify({ note: input.note })]
+    );
+    shipmentId = shipment.rows[0].id;
+    const job = await client.query("insert into outbox_jobs (shop_id, queue, job_type, payload, max_attempts) values ($1, 'courier', 'courier.shipment.book', $2, 3) returning id", [shopId, JSON.stringify({ shipmentId })]);
+    await client.query("update shipments set job_id = $2 where id = $1", [shipmentId, job.rows[0].id]);
+    await client.query("insert into shipment_tracking_events (shop_id, shipment_id, order_id, status, source, note, created_by) values ($1, $2, $3, 'booked', 'api', $4, $5)", [shopId, shipmentId, input.orderId, input.note ?? "Courier booking queued", actorId]);
+    await client.query("insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'staff', $2, 'shipment.api_booking_queued', 'shipment', $3, $4)", [shopId, actorId, shipmentId, JSON.stringify({ orderId: input.orderId, courierAccountId: input.courierAccountId })]);
+    await moveOrderForShipment(client, shopId, input.orderId, "shipped", input.note, actorId);
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    if ((error as { code?: string }).code === "23505") throw new DeliveryError("Order already has an open shipment.", 409, "SHIPMENT_ALREADY_EXISTS");
+    throw error;
+  } finally {
+    client.release();
+  }
+  return getShipment(shopId, shipmentId);
+}
+
+export async function markCourierShipmentNotConnected(shipmentId: string) {
+  const result = await db.query(
+    `update shipments set provider_status = 'not_connected', provider_error = 'COURIER_PROVIDER_NOT_CONNECTED', updated_at = now()
+     where id = $1 and provider_status = 'queued'
+     returning id, shop_id, order_id, provider, status, provider_status`,
+    [shipmentId]
+  );
+  if (!result.rowCount) return { skipped: true };
+  await db.query("insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'system', 'system', 'shipment.provider_not_connected', 'shipment', $2, $3)", [result.rows[0].shop_id, shipmentId, JSON.stringify({ provider: result.rows[0].provider })]);
+  return { shipment: result.rows[0] };
+}
+
 export async function updateShipmentStatus(shopId: string, shipmentId: string, input: { status: ShipmentStatus; note?: string; contactResult?: string; rescheduleDate?: string }, actorId: string) {
   const client = await db.connect();
   let orderId = "";
@@ -175,6 +260,8 @@ export async function updateShipmentStatus(shopId: string, shipmentId: string, i
     await client.query("begin");
     const shipment = await client.query("select id, order_id, status from shipments where shop_id = $1 and id = $2 for update", [shopId, shipmentId]);
     if (!shipment.rowCount) throw new DeliveryError("Shipment not found.", 404, "SHIPMENT_NOT_FOUND");
+    const lastWebhook = await client.query("select status from shipment_tracking_events where shop_id = $1 and shipment_id = $2 and source = 'webhook' order by created_at desc limit 1", [shopId, shipmentId]);
+    if (lastWebhook.rowCount && lastWebhook.rows[0].status !== input.status) throw new DeliveryError("Webhook status is newer than manual status.", 409, "SHIPMENT_WEBHOOK_STATUS_AUTHORITATIVE");
 
     const current = shipment.rows[0].status as ShipmentStatus;
     orderId = shipment.rows[0].order_id;
@@ -239,4 +326,8 @@ export async function rescheduleShipment(shopId: string, shipmentId: string, inp
     throw error;
   } finally { client.release(); }
   return getShipment(shopId, shipmentId);
+}
+
+async function audit(shopId: string, actorId: string, action: string, targetType: string, targetId: string, metadata: unknown) {
+  await db.query("insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'staff', $2, $3, $4, $5, $6)", [shopId, actorId, action, targetType, targetId, JSON.stringify(metadata)]);
 }

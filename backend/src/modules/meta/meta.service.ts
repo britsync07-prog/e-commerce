@@ -104,7 +104,21 @@ export async function saveCatalogSync(shopId: string, input: { connectionId: str
   if (!connection.rowCount) throw new MetaError("An active Meta connection is required.", 409, "META_CONNECTION_REQUIRED");
   const settings = { skipUnpublished: input.skipUnpublished, skipOutOfStock: input.skipOutOfStock };
   const result = await db.query(`insert into meta_catalog_syncs (shop_id, connection_id, settings, created_by) values ($1, $2, $3, $4) on conflict (shop_id) do update set connection_id = excluded.connection_id, settings = excluded.settings, status = 'pending', last_error = null, updated_at = now() returning id, shop_id, connection_id, status, settings, products_count, skipped_count, last_started_at, last_completed_at, last_error, updated_at`, [shopId, input.connectionId, JSON.stringify(settings), actorId]);
+  await db.query("insert into outbox_jobs (shop_id, queue, job_type, payload, max_attempts) values ($1, 'imports', 'meta.catalog.sync', $2, 3)", [shopId, JSON.stringify({ catalogSyncId: result.rows[0].id })]);
   await audit(shopId, actorId, "meta.catalog_sync_configured", "meta_catalog_sync", result.rows[0].id, settings);
+  return { catalogSync: result.rows[0] };
+}
+
+export async function markMetaCatalogSyncNotConnected(catalogSyncId: string) {
+  const result = await db.query(
+    `update meta_catalog_syncs
+     set status = 'failed', last_started_at = coalesce(last_started_at, now()), last_completed_at = now(), last_error = 'META_CATALOG_PROVIDER_NOT_CONNECTED', updated_at = now()
+     where id = $1 and status in ('pending', 'processing')
+     returning id, shop_id, connection_id, status, last_error`,
+    [catalogSyncId]
+  );
+  if (!result.rowCount) return { skipped: true };
+  await db.query("insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'system', 'system', 'meta.catalog_not_connected', 'meta_catalog_sync', $2, $3)", [result.rows[0].shop_id, catalogSyncId, JSON.stringify({ connectionId: result.rows[0].connection_id })]);
   return { catalogSync: result.rows[0] };
 }
 

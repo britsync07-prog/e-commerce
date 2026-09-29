@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import pg from "pg";
 import { buildApp } from "../dist/app.js";
+import { markMetaCatalogSyncNotConnected } from "../dist/modules/meta/meta.service.js";
 
 if (!process.env.DATABASE_URL) { console.log("Skipping Meta DB smoke: DATABASE_URL is not set."); process.exit(0); }
 if (!process.env.META_WEBHOOK_SECRET || !process.env.META_WEBHOOK_VERIFY_TOKEN) throw new Error("META_WEBHOOK_SECRET and META_WEBHOOK_VERIFY_TOKEN are required");
@@ -43,6 +44,12 @@ try {
   const configured = await app.inject({ method: "PUT", url: `/api/v1/meta/shops/${shopId}/catalog-sync`, headers: { authorization: `Bearer ${token}` }, payload: { connectionId, skipUnpublished: true, skipOutOfStock: true } });
   assert.equal(configured.statusCode, 200, configured.body);
   assert.equal(configured.json().catalogSync.status, "pending");
+  const syncJob = await client.query("select id from outbox_jobs where shop_id = $1 and queue = 'imports' and job_type = 'meta.catalog.sync' and payload->>'catalogSyncId' = $2", [shopId, configured.json().catalogSync.id]);
+  assert.equal(syncJob.rowCount, 1);
+  await markMetaCatalogSyncNotConnected(configured.json().catalogSync.id);
+  const failedSync = await client.query("select status, last_error from meta_catalog_syncs where id = $1", [configured.json().catalogSync.id]);
+  assert.equal(failedSync.rows[0].status, "failed");
+  assert.equal(failedSync.rows[0].last_error, "META_CATALOG_PROVIDER_NOT_CONNECTED");
   const preview = await app.inject({ method: "POST", url: `/api/v1/meta/shops/${shopId}/catalog-sync/preview`, headers: { authorization: `Bearer ${token}` }, payload: { skipUnpublished: true, skipOutOfStock: true } });
   assert.equal(preview.statusCode, 200, preview.body);
   assert.equal(preview.json().summary.products, 1);

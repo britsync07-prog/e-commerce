@@ -1,6 +1,7 @@
 import { completeJob, claimNextJob, failJob, recordWorkerHeartbeat } from "./modules/jobs/jobs.service.js";
 import { markCommentActionNotConnected } from "./modules/comments/comments.service.js";
-import { processMetaWebhookEvent } from "./modules/meta/meta.service.js";
+import { markCourierShipmentNotConnected } from "./modules/delivery/delivery.service.js";
+import { markMetaCatalogSyncNotConnected, processMetaWebhookEvent } from "./modules/meta/meta.service.js";
 import { fileURLToPath } from "node:url";
 
 const workerId = process.env.WORKER_ID ?? `worker-${process.pid}`;
@@ -36,7 +37,8 @@ async function handle(queue: string, jobType: string, payload: unknown) {
   if (queue === "analytics" && jobType === "analytics.rebuild") return;
   if (queue === "webhooks" && jobType === "meta.webhook.process") { await processMetaWebhookEvent(payloadValue(payload, "webhookEventId")); return; }
   if (queue === "comments" && jobType === "comment.action.dispatch") { await markCommentActionNotConnected(payloadValue(payload, "actionId")); return; }
-  if (queue === "imports" && jobType === "meta.catalog.sync") throw new Error("RETRYABLE: Meta catalog provider worker is not connected yet.");
+  if (queue === "courier" && jobType === "courier.shipment.book") { await markCourierShipmentNotConnected(payloadValue(payload, "shipmentId")); return; }
+  if (queue === "imports" && jobType === "meta.catalog.sync") { await markMetaCatalogSyncNotConnected(payloadValue(payload, "catalogSyncId")); return; }
   void payload;
   throw new Error(`Unsupported job type: ${queue}.${jobType}`);
 }

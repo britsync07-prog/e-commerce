@@ -2,8 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { ZodError, type ZodTypeAny } from "zod";
 import { AuthError } from "../auth/auth.service.js";
 import { PermissionError, requireShopPermission } from "../../shared/permissions.js";
-import { createManualShipment, DeliveryError, getShipment, listShipments, rescheduleShipment, updateShipmentStatus } from "./delivery.service.js";
-import { listShipmentsQuerySchema, manualShipmentSchema, rescheduleSchema, shipmentParamsSchema, shipmentStatusSchema, shopParamsSchema } from "./delivery.validators.js";
+import { createApiShipment, createCourierAccount, createManualShipment, DeliveryError, getShipment, listCourierAccounts, listShipments, rescheduleShipment, testCourierAccount, updateShipmentStatus } from "./delivery.service.js";
+import { apiShipmentSchema, courierAccountParamsSchema, courierAccountSchema, listShipmentsQuerySchema, manualShipmentSchema, rescheduleSchema, shipmentParamsSchema, shipmentStatusSchema, shopParamsSchema } from "./delivery.validators.js";
 
 function parse<T extends ZodTypeAny>(schema: T, value: unknown) {
   return schema.parse(value) as T["_output"];
@@ -17,6 +17,40 @@ function handleError(error: unknown) {
 }
 
 export async function registerDeliveryRoutes(app: FastifyInstance) {
+  app.get("/shops/:shopId/courier-accounts", async (request, reply) => {
+    try {
+      const params = parse(shopParamsSchema, request.params);
+      await requireShopPermission(request, params.shopId, "delivery:read");
+      return listCourierAccounts(params.shopId);
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.post("/shops/:shopId/courier-accounts", async (request, reply) => {
+    try {
+      const params = parse(shopParamsSchema, request.params);
+      const body = parse(courierAccountSchema, request.body);
+      const session = await requireShopPermission(request, params.shopId, "delivery:write");
+      return reply.code(201).send(await createCourierAccount(params.shopId, body, session.user.id as string));
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.post("/shops/:shopId/courier-accounts/:accountId/test", async (request, reply) => {
+    try {
+      const params = parse(courierAccountParamsSchema, request.params);
+      const session = await requireShopPermission(request, params.shopId, "delivery:write");
+      return testCourierAccount(params.shopId, params.accountId, session.user.id as string);
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
   app.get("/shops/:shopId/shipments", async (request, reply) => {
     try {
       const params = parse(shopParamsSchema, request.params);
@@ -35,6 +69,18 @@ export async function registerDeliveryRoutes(app: FastifyInstance) {
       const body = parse(manualShipmentSchema, request.body);
       const session = await requireShopPermission(request, params.shopId, "delivery:write");
       return reply.code(201).send(await createManualShipment(params.shopId, body, session.user.id as string));
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.post("/shops/:shopId/shipments/api", async (request, reply) => {
+    try {
+      const params = parse(shopParamsSchema, request.params);
+      const body = parse(apiShipmentSchema, request.body);
+      const session = await requireShopPermission(request, params.shopId, "delivery:write");
+      return reply.code(201).send(await createApiShipment(params.shopId, body, session.user.id as string));
     } catch (error) {
       const result = handleError(error);
       return reply.code(result.statusCode).send(result.body);

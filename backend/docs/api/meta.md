@@ -152,9 +152,9 @@ Request: `{ "connectionId": "uuid", "skipUnpublished": true, "skipOutOfStock": t
 
 Response: Updated `catalogSync` state with `status: "pending"`.
 
-Side effects: Saves sync settings; it does not call Meta or change local catalog data.
+Side effects: Saves sync settings and enqueues `meta.catalog.sync`. It does not call Meta or change local catalog data in the request cycle. Worker marks the sync `failed` with `META_CATALOG_PROVIDER_NOT_CONNECTED` until a real Meta catalog adapter is configured.
 
-Audit/timeline: Writes `meta.catalog_sync_configured` audit.
+Audit/timeline: Writes `meta.catalog_sync_configured`; worker fallback writes `meta.catalog_not_connected`.
 
 Cache: Invalidate catalog sync state.
 

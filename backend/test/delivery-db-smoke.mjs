@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import pg from "pg";
 import { buildApp } from "../dist/app.js";
+import { markCourierShipmentNotConnected } from "../dist/modules/delivery/delivery.service.js";
 
 if (!process.env.DATABASE_URL) {
   console.log("Skipping delivery DB smoke: DATABASE_URL is not set.");
@@ -142,6 +143,39 @@ try {
   const tracked = await app.inject({ method: "GET", url: `/api/v1/orders/track?orderId=${orderId}&phone=${encodeURIComponent(phone)}` });
   assert.equal(tracked.statusCode, 200, tracked.body);
   assert.equal(tracked.json().order.status, "delivered");
+
+  const apiCheckout = await app.inject({
+    method: "POST",
+    url: "/api/v1/orders/checkout",
+    payload: {
+      subdomain,
+      customer: { name: "Buyer Two", phone: `${phone}1`, address: "House 2, Road 3, Dhaka", city: "Dhaka" },
+      items: [{ variantId: variant.rows[0].id, quantity: 1 }],
+      paymentMethod: "cod"
+    }
+  });
+  assert.equal(apiCheckout.statusCode, 201, apiCheckout.body);
+  const apiOrderId = apiCheckout.json().order.id;
+  const apiPacked = await app.inject({ method: "PATCH", url: `/api/v1/orders/shops/${shopId}/orders/${apiOrderId}/status`, headers: { authorization: `Bearer ${token}` }, payload: { status: "packed" } });
+  assert.equal(apiPacked.statusCode, 200, apiPacked.body);
+
+  const account = await app.inject({ method: "POST", url: `/api/v1/delivery/shops/${shopId}/courier-accounts`, headers: { authorization: `Bearer ${token}` }, payload: { provider: "pathao", displayName: "Pathao API", credentialRef: "vault:pathao-smoke", settings: { city: "Dhaka" } } });
+  assert.equal(account.statusCode, 201, account.body);
+  assert.equal(account.json().account.status, "active");
+  const tested = await app.inject({ method: "POST", url: `/api/v1/delivery/shops/${shopId}/courier-accounts/${account.json().account.id}/test`, headers: { authorization: `Bearer ${token}` } });
+  assert.equal(tested.statusCode, 200, tested.body);
+  assert.equal(tested.json().connected, true);
+
+  const apiBooked = await app.inject({ method: "POST", url: `/api/v1/delivery/shops/${shopId}/shipments/api`, headers: { authorization: `Bearer ${token}` }, payload: { orderId: apiOrderId, courierAccountId: account.json().account.id, fee: 90, note: "API booking queued" } });
+  assert.equal(apiBooked.statusCode, 201, apiBooked.body);
+  assert.equal(apiBooked.json().shipment.booking_source, "api");
+  assert.equal(apiBooked.json().shipment.provider_status, "queued");
+  const apiShipmentId = apiBooked.json().shipment.id;
+  const apiJob = await client.query("select id from outbox_jobs where queue = 'courier' and job_type = 'courier.shipment.book' and payload->>'shipmentId' = $1", [apiShipmentId]);
+  assert.equal(apiJob.rowCount, 1);
+  await markCourierShipmentNotConnected(apiShipmentId);
+  const apiShipment = await client.query("select provider_status from shipments where id = $1", [apiShipmentId]);
+  assert.equal(apiShipment.rows[0].provider_status, "not_connected");
 
   console.log("Delivery DB smoke passed.");
 } finally {
