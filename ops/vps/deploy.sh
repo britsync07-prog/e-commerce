@@ -61,7 +61,7 @@ pm2 stop "$BACKEND_APP" "$WORKER_APP" || true
 npm ci --include=dev
 npm run db:migrate
 npm run build
-npm prune --omit=dev
+npm prune --omit=dev || log "npm prune failed; continuing with built app and installed dependencies"
 
 log "installing storefront dependencies"
 cd "$APP_DIR/storefront"
