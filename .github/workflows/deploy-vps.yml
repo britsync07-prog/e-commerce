@@ -51,6 +51,10 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/fcommerce_ci
           REDIS_URL: redis://localhost:6379
           AUTH_OTP_SECRET: ci-auth-otp-secret-minimum-32-characters
+          META_APP_ID: ci-meta-app
+          META_APP_SECRET: ci-meta-app-secret
+          META_OAUTH_REDIRECT_URI: http://localhost:4000/api/v1/meta/oauth/callback
+          META_TOKEN_ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
           META_WEBHOOK_SECRET: ci-meta-webhook-secret
           META_WEBHOOK_VERIFY_TOKEN: ci-meta-token
         run: |
