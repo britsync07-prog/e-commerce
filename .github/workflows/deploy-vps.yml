@@ -51,6 +51,8 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/fcommerce_ci
           REDIS_URL: redis://localhost:6379
           AUTH_OTP_SECRET: ci-auth-otp-secret-minimum-32-characters
+          META_WEBHOOK_SECRET: ci-meta-webhook-secret
+          META_WEBHOOK_VERIFY_TOKEN: ci-meta-token
         run: |
           npm ci
           npm run check:full
