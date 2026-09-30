@@ -13,6 +13,29 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: fcommerce_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d fcommerce_ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -27,9 +50,10 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/fcommerce_ci
           REDIS_URL: redis://localhost:6379
+          AUTH_OTP_SECRET: ci-auth-otp-secret-minimum-32-characters
         run: |
           npm ci
-          npm run check
+          npm run check:full
 
   deploy:
     needs: check
