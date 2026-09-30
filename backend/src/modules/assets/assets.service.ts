@@ -1,14 +1,13 @@
-import { createWriteStream } from "node:fs";
-import { mkdir, stat, unlink } from "node:fs/promises";
-import { extname, join, resolve } from "node:path";
-import { pipeline } from "node:stream/promises";
+import { extname } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { MultipartFile } from "@fastify/multipart";
 import { db } from "../../shared/db.js";
-import { config } from "../../shared/config.js";
+import { signedAssetUrl, storeAsset } from "./storage.js";
 
 const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const allowedProofTypes = new Set([...allowedImageTypes, "application/pdf"]);
 const maxImageBytes = 5 * 1024 * 1024;
+const maxProofBytes = 10 * 1024 * 1024;
 
 export class AssetError extends Error {
   constructor(
@@ -27,19 +26,10 @@ export async function saveShopImage(shopId: string, file: MultipartFile, actorId
 
   const extension = extname(file.filename || "").toLowerCase() || ".bin";
   const fileName = `${randomUUID()}${extension}`;
-  const storageRoot = resolve(config.localStorageDir);
-  const relativePath = join("assets", shopId, fileName).replace(/\\/g, "/");
-  const absoluteDir = join(storageRoot, "assets", shopId);
-  const absolutePath = join(absoluteDir, fileName);
-
-  await mkdir(absoluteDir, { recursive: true });
-  await pipeline(file.file, createWriteStream(absolutePath));
-
-  const size = (await stat(absolutePath)).size;
-  if (size > maxImageBytes) {
-    await unlink(absolutePath).catch(() => undefined);
-    throw new AssetError("Image is larger than 5MB.", 413, "IMAGE_TOO_LARGE");
-  }
+  const stored = await storeAsset({ shopId, fileName, mimeType: file.mimetype, stream: file.file, maxBytes: maxImageBytes, access: "public" }).catch((error) => {
+    if ((error as { code?: string }).code === "FILE_TOO_LARGE") throw new AssetError("Image is larger than 5MB.", 413, "IMAGE_TOO_LARGE");
+    throw error;
+  });
 
   const result = await db.query(
     `
@@ -49,18 +39,48 @@ export async function saveShopImage(shopId: string, file: MultipartFile, actorId
     `,
     [
       shopId,
-      config.storageDriver,
-      "local",
-      relativePath,
-      publicUrl(relativePath),
+      stored.storageDriver,
+      stored.bucket,
+      stored.objectKey,
+      stored.publicUrl,
       file.mimetype,
-      size,
+      stored.byteSize,
       "image",
       actorId
     ]
   );
 
   return result.rows[0];
+}
+
+export async function savePaymentProof(shopId: string, file: MultipartFile, actorId: string) {
+  if (!allowedProofTypes.has(file.mimetype)) {
+    throw new AssetError("Only jpg, png, webp, gif, and pdf proof files are allowed.", 400, "UNSUPPORTED_PROOF_TYPE");
+  }
+
+  const extension = extname(file.filename || "").toLowerCase() || ".bin";
+  const fileName = `${randomUUID()}${extension}`;
+  const stored = await storeAsset({ shopId, fileName, mimeType: file.mimetype, stream: file.file, maxBytes: maxProofBytes, access: "private" }).catch((error) => {
+    if ((error as { code?: string }).code === "FILE_TOO_LARGE") throw new AssetError("Proof file is larger than 10MB.", 413, "PROOF_TOO_LARGE");
+    throw error;
+  });
+
+  const result = await db.query(
+    `
+      insert into asset_objects (shop_id, storage_driver, bucket, object_key, public_url, mime_type, byte_size, purpose, created_by)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      returning id, shop_id, public_url, mime_type, byte_size, purpose, created_at
+    `,
+    [shopId, stored.storageDriver, stored.bucket, stored.objectKey, stored.publicUrl, file.mimetype, stored.byteSize, "payment_proof", actorId]
+  );
+
+  return result.rows[0];
+}
+
+export async function createSignedAssetUrl(shopId: string, assetId: string) {
+  const asset = await db.query("select id, storage_driver, object_key, public_url from asset_objects where shop_id = $1 and id = $2", [shopId, assetId]);
+  if (!asset.rowCount) throw new AssetError("Asset not found for this shop.", 404, "ASSET_NOT_FOUND");
+  return { url: await signedAssetUrl(asset.rows[0]), expiresInSeconds: asset.rows[0].public_url ? null : 300 };
 }
 
 export async function attachProductImage(
@@ -99,10 +119,4 @@ export async function removeProductImage(shopId: string, productId: string, imag
     [shopId, actorId, productId, { imageId, assetId: image.rows[0].asset_id }]
   );
   return { removed: image.rows[0] };
-}
-
-function publicUrl(relativePath: string) {
-  const cleanPath = relativePath.replace(/\\/g, "/");
-  if (config.publicAssetBaseUrl) return `${config.publicAssetBaseUrl.replace(/\/$/, "")}/${cleanPath}`;
-  return `/api/v1/assets/file/${cleanPath}`;
 }

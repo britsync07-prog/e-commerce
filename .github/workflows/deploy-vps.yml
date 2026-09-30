@@ -51,6 +51,7 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/fcommerce_ci
           REDIS_URL: redis://localhost:6379
           APP_ORIGIN: http://localhost:3000
+          ASSET_SIGNING_SECRET: ci-asset-signing-secret-minimum-32-chars
           AUTH_OTP_SECRET: ci-auth-otp-secret-minimum-32-characters
           META_APP_ID: ci-meta-app
           META_APP_SECRET: ci-meta-app-secret

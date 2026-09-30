@@ -78,6 +78,7 @@ export DATABASE_URL="${DATABASE_URL:?DATABASE_URL is required for production dep
 export REDIS_URL="${REDIS_URL:?REDIS_URL is required for production deploy}"
 export STORAGE_DRIVER="${STORAGE_DRIVER:?STORAGE_DRIVER is required for production deploy}"
 export LOCAL_STORAGE_DIR="${LOCAL_STORAGE_DIR:?LOCAL_STORAGE_DIR is required for production deploy}"
+export ASSET_SIGNING_SECRET="${ASSET_SIGNING_SECRET:?ASSET_SIGNING_SECRET is required for production deploy}"
 export STOREFRONT_PORT="${STOREFRONT_PORT:?STOREFRONT_PORT is required for production deploy}"
 export STOREFRONT_HOST="${STOREFRONT_HOST:?STOREFRONT_HOST is required for production deploy}"
 export STOREFRONT_BACKEND_URL="${STOREFRONT_BACKEND_URL:?STOREFRONT_BACKEND_URL is required for production deploy}"

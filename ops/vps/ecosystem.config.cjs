@@ -21,7 +21,16 @@ module.exports = {
         REDIS_URL: requireEnv("REDIS_URL"),
         APP_ORIGIN: requireEnv("APP_ORIGIN"),
         STORAGE_DRIVER: requireEnv("STORAGE_DRIVER"),
-        LOCAL_STORAGE_DIR: requireEnv("LOCAL_STORAGE_DIR")
+        LOCAL_STORAGE_DIR: requireEnv("LOCAL_STORAGE_DIR"),
+        ASSET_SIGNING_SECRET: requireEnv("ASSET_SIGNING_SECRET"),
+        S3_ENDPOINT: process.env.S3_ENDPOINT,
+        S3_REGION: process.env.S3_REGION,
+        S3_BUCKET: process.env.S3_BUCKET,
+        S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID,
+        S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY,
+        S3_PUBLIC_BASE_URL: process.env.S3_PUBLIC_BASE_URL,
+        STORAGE_PUBLIC_PREFIX: process.env.STORAGE_PUBLIC_PREFIX,
+        STORAGE_PRIVATE_PREFIX: process.env.STORAGE_PRIVATE_PREFIX
       }
     },
     {
@@ -35,7 +44,16 @@ module.exports = {
         REDIS_URL: requireEnv("REDIS_URL"),
         APP_ORIGIN: requireEnv("APP_ORIGIN"),
         STORAGE_DRIVER: requireEnv("STORAGE_DRIVER"),
-        LOCAL_STORAGE_DIR: requireEnv("LOCAL_STORAGE_DIR")
+        LOCAL_STORAGE_DIR: requireEnv("LOCAL_STORAGE_DIR"),
+        ASSET_SIGNING_SECRET: requireEnv("ASSET_SIGNING_SECRET"),
+        S3_ENDPOINT: process.env.S3_ENDPOINT,
+        S3_REGION: process.env.S3_REGION,
+        S3_BUCKET: process.env.S3_BUCKET,
+        S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID,
+        S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY,
+        S3_PUBLIC_BASE_URL: process.env.S3_PUBLIC_BASE_URL,
+        STORAGE_PUBLIC_PREFIX: process.env.STORAGE_PUBLIC_PREFIX,
+        STORAGE_PRIVATE_PREFIX: process.env.STORAGE_PRIVATE_PREFIX
       }
     },
     {

@@ -5,11 +5,14 @@ Base path: `/api/v1/assets`
 Purpose:
 - Stores seller images for product photos, logos, proofs, and future uploads.
 - Writes asset metadata to PostgreSQL.
-- Uses local disk in dev/current VPS and keeps object-storage shape for S3/R2 later.
+- Uses local disk or S3-compatible object storage such as Cloudflare R2.
+- Public images receive stable CDN-friendly URLs.
+- Payment proofs are private and require signed URLs.
 
 Auth:
 - Image upload requires bearer session and `assets:write`.
 - Public image reads do not require auth.
+- Private proof signed URL creation requires bearer session and `assets:write`.
 
 ## `POST /:shopId/images`
 
@@ -26,7 +29,7 @@ Response:
 {
   "id": "uuid",
   "shop_id": "uuid",
-  "public_url": "/api/v1/assets/file/assets/shop-id/file.webp",
+  "public_url": "/api/v1/assets/file/public/shop-id/file.webp",
   "mime_type": "image/webp",
   "byte_size": 12345,
   "purpose": "image",
@@ -35,7 +38,7 @@ Response:
 ```
 
 Side effects:
-- Saves file under configured storage.
+- Saves file under configured storage under the public prefix.
 - Inserts `asset_objects` row.
 
 Audit/timeline:
@@ -57,7 +60,59 @@ Errors:
 - `413 IMAGE_TOO_LARGE`
 - `500` for storage or database failure.
 
-## `GET /file/assets/:shopId/:fileName`
+## `POST /:shopId/proofs`
+
+Purpose: upload a private payment proof asset.
+
+Request:
+- Path param `shopId`: shop UUID.
+- `multipart/form-data`.
+- File field: `file`.
+- Allowed types: `image/jpeg`, `image/png`, `image/webp`, `image/gif`, `application/pdf`.
+- Max size: 10MB.
+
+Response:
+
+```json
+{
+  "id": "uuid",
+  "shop_id": "uuid",
+  "public_url": "",
+  "mime_type": "application/pdf",
+  "byte_size": 12345,
+  "purpose": "payment_proof",
+  "created_at": "2026-09-24T00:00:00.000Z"
+}
+```
+
+Side effects:
+- Saves file under configured storage under the private prefix.
+- Inserts `asset_objects` row.
+
+Errors:
+- `400 FILE_REQUIRED`
+- `400 UNSUPPORTED_PROOF_TYPE`
+- `413 PROOF_TOO_LARGE`
+
+## `GET /:shopId/files/:assetId/signed-url`
+
+Purpose: return a temporary URL for a private proof or the stable public URL for a public asset.
+
+Auth: Bearer session required; requires `assets:write`.
+
+Response:
+
+```json
+{
+  "url": "/api/v1/assets/private/asset-id?expires=123&token=signed",
+  "expiresInSeconds": 300
+}
+```
+
+Errors:
+- `404 ASSET_NOT_FOUND`
+
+## `GET /file/public/:shopId/:fileName`
 
 Request:
 - Path param `shopId`: shop UUID.
@@ -78,6 +133,20 @@ Cache:
 
 Errors:
 - `400 INVALID_PATH`
+- `404 ASSET_NOT_FOUND`
+
+## `GET /file/assets/:shopId/:fileName`
+
+Compatibility route for assets uploaded before the public/private storage split.
+
+## `GET /private/:assetId`
+
+Purpose: serve a private local asset through a signed URL.
+
+Auth: signed URL token in query string.
+
+Errors:
+- `403 SIGNED_URL_INVALID`
 - `404 ASSET_NOT_FOUND`
 
 ## `POST /:shopId/products/:productId/images`
