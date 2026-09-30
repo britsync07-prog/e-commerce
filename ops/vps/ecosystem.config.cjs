@@ -1,44 +1,54 @@
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is required`);
+  return value;
+}
+
+const appDir = requireEnv("APP_DIR");
+
 module.exports = {
   apps: [
     {
       name: "fcommerce-backend",
-      cwd: "/var/www/e-commerce/backend",
+      cwd: `${appDir}/backend`,
       script: "dist/server.js",
       interpreter: "node",
       env: {
         NODE_ENV: "production",
-        PORT: "4001",
-        HOST: "0.0.0.0",
-        DATABASE_URL: "postgresql:///fcommerce?host=/var/run/postgresql&port=5433",
-        REDIS_URL: "redis://localhost:6379",
-        STORAGE_DRIVER: "local",
-        LOCAL_STORAGE_DIR: "/var/www/e-commerce/backend/storage"
+        PORT: requireEnv("BACKEND_PORT"),
+        HOST: requireEnv("BACKEND_HOST"),
+        DATABASE_URL: requireEnv("DATABASE_URL"),
+        REDIS_URL: requireEnv("REDIS_URL"),
+        APP_ORIGIN: requireEnv("APP_ORIGIN"),
+        STORAGE_DRIVER: requireEnv("STORAGE_DRIVER"),
+        LOCAL_STORAGE_DIR: requireEnv("LOCAL_STORAGE_DIR")
       }
     },
     {
       name: "fcommerce-worker",
-      cwd: "/var/www/e-commerce/backend",
+      cwd: `${appDir}/backend`,
       script: "dist/worker.js",
       interpreter: "node",
       env: {
         NODE_ENV: "production",
-        DATABASE_URL: "postgresql:///fcommerce?host=/var/run/postgresql&port=5433",
-        REDIS_URL: "redis://localhost:6379",
-        STORAGE_DRIVER: "local",
-        LOCAL_STORAGE_DIR: "/var/www/e-commerce/backend/storage"
+        DATABASE_URL: requireEnv("DATABASE_URL"),
+        REDIS_URL: requireEnv("REDIS_URL"),
+        APP_ORIGIN: requireEnv("APP_ORIGIN"),
+        STORAGE_DRIVER: requireEnv("STORAGE_DRIVER"),
+        LOCAL_STORAGE_DIR: requireEnv("LOCAL_STORAGE_DIR")
       }
     },
     {
       name: "fcommerce-storefront",
-      cwd: "/var/www/e-commerce/storefront",
+      cwd: `${appDir}/storefront`,
       script: "server.mjs",
       interpreter: "node",
       env: {
         NODE_ENV: "production",
-        PORT: "3100",
-        HOST: "0.0.0.0",
-        BACKEND_URL: "http://127.0.0.1:4001",
-        ROOT_DOMAIN: "mdsaimon.qzz.io"
+        PORT: requireEnv("STOREFRONT_PORT"),
+        HOST: requireEnv("STOREFRONT_HOST"),
+        BACKEND_URL: requireEnv("STOREFRONT_BACKEND_URL"),
+        ROOT_DOMAIN: requireEnv("ROOT_DOMAIN")
       }
     }
   ]

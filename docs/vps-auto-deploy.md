@@ -18,19 +18,12 @@ VPS_USER=deploy
 VPS_PASSWORD=SSH password for that user
 ```
 
-For your current VPS, use:
-
-```txt
-VPS_HOST=161.97.92.162
-VPS_USER=root
-```
-
 Do not commit the password. Put it only in GitHub Secrets.
 
-Optional GitHub variable:
+Required GitHub variable:
 
 ```txt
-VPS_APP_DIR=/var/www/e-commerce
+VPS_APP_DIR=/absolute/path/to/app
 ```
 
 ## VPS Requirements
@@ -63,7 +56,7 @@ The script:
 ops/vps/deploy.sh
 ```
 
-If `/var/www/e-commerce` does not exist, it clones:
+If the app directory does not exist, it clones:
 
 ```txt
 https://github.com/britsync07-prog/e-commerce.git
@@ -79,44 +72,29 @@ No GitHub Environment approval is configured, so every push to `main` deploys au
 
 ## Environment Files On VPS
 
-Backend:
+Deploy:
 
 ```txt
-/var/www/e-commerce/backend/.env
+/absolute/path/to/app/.env
 ```
 
 Example:
 
 ```txt
+APP_DIR=/absolute/path/to/app
 NODE_ENV=production
-PORT=4001
-HOST=0.0.0.0
+BACKEND_PORT=backend_port
+BACKEND_HOST=0.0.0.0
 LOG_LEVEL=info
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/fcommerce
-REDIS_URL=redis://localhost:6379
-APP_ORIGIN=https://dashboard.yourdomain.com
-```
-
-Storefront:
-
-```txt
-/var/www/e-commerce/storefront/.env
-```
-
-Example:
-
-```txt
-PORT=3100
-HOST=0.0.0.0
-BACKEND_URL=https://api.yourdomain.com
+DATABASE_URL=postgres://user:password@host:port/database
+REDIS_URL=redis://host:port
+APP_ORIGIN=https://dashboard.example.com
+STORAGE_DRIVER=local
+LOCAL_STORAGE_DIR=/absolute/path/to/app/backend/storage
+STOREFRONT_PORT=storefront_port
+STOREFRONT_HOST=0.0.0.0
+STOREFRONT_BACKEND_URL=http://backend_host:backend_port
 ROOT_DOMAIN=yourdomain.com
-```
-
-Current live-test domain:
-
-```txt
-ROOT_DOMAIN=mdsaimon.qzz.io
-BACKEND_URL=http://127.0.0.1:4001
 ```
 
 ## Nginx
@@ -127,17 +105,11 @@ Template:
 ops/vps/nginx.example.conf
 ```
 
-Current domain config:
-
-```txt
-ops/vps/nginx-mdsaimon.qzz.io.conf
-```
-
 Routing, if you choose to add it manually:
 
 ```txt
-api.yourdomain.com -> 127.0.0.1:4001
-*.yourdomain.com   -> 127.0.0.1:3100
+api.yourdomain.com -> backend_host:backend_port
+*.yourdomain.com   -> storefront_host:storefront_port
 ```
 
 DNS:
@@ -157,7 +129,7 @@ During deploy:
 On VPS:
 
 ```bash
-cd /var/www/e-commerce
+cd /absolute/path/to/app
 bash ops/vps/tail-logs.sh
 ```
 
@@ -173,5 +145,5 @@ pm2 logs fcommerce-storefront
 On VPS:
 
 ```bash
-APP_DIR=/var/www/e-commerce BRANCH=main bash /var/www/e-commerce/ops/vps/deploy.sh
+APP_DIR=/absolute/path/to/app BRANCH=main bash /absolute/path/to/app/ops/vps/deploy.sh
 ```

@@ -39,7 +39,7 @@ export async function buildApp() {
   app.addHook("onRequest", requestContextHook);
 
   await app.register(helmet);
-  await app.register(cors, { origin: config.appOrigin });
+  await app.register(cors, { origin: config.appOrigins });
   await app.register(multipart, {
     limits: {
       fileSize: 5 * 1024 * 1024,
@@ -51,15 +51,17 @@ export async function buildApp() {
     timeWindow: "1 minute"
   });
 
-  await app.register(swagger, {
-    openapi: {
-      info: {
-        title: "F-commerce Backend API",
-        version: "0.1.0"
+  if (config.nodeEnv !== "production") {
+    await app.register(swagger, {
+      openapi: {
+        info: {
+          title: "F-commerce Backend API",
+          version: "0.1.0"
+        }
       }
-    }
-  });
-  await app.register(swaggerUi, { routePrefix: "/docs" });
+    });
+    await app.register(swaggerUi, { routePrefix: "/docs" });
+  }
 
   await app.register(registerAssetRoutes, { prefix: "/api/v1/assets" });
   await app.register(registerAuthRoutes, { prefix: "/api/v1/auth" });

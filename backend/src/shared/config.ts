@@ -10,7 +10,7 @@ const schema = z.object({
   LOG_LEVEL: z.string().default("info"),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
-  APP_ORIGIN: z.string().default("http://localhost:3000"),
+  APP_ORIGIN: z.string().min(1),
   STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
   LOCAL_STORAGE_DIR: z.string().default("./storage"),
   PUBLIC_ASSET_BASE_URL: z.string().default(""),
@@ -26,6 +26,22 @@ const schema = z.object({
 });
 
 const env = schema.parse(process.env);
+const appOrigins = env.APP_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean);
+
+for (const origin of appOrigins) {
+  try {
+    new URL(origin);
+  } catch {
+    throw new Error(`APP_ORIGIN contains an invalid URL: ${origin}`);
+  }
+}
+
+if (env.NODE_ENV === "production") {
+  if (!appOrigins.length) throw new Error("APP_ORIGIN is required in production.");
+  if (appOrigins.some((origin) => /localhost|127\.0\.0\.1|\[::1\]/.test(origin))) {
+    throw new Error("APP_ORIGIN must not use localhost in production.");
+  }
+}
 
 export const config = {
   nodeEnv: env.NODE_ENV,
@@ -34,7 +50,7 @@ export const config = {
   logLevel: env.LOG_LEVEL,
   databaseUrl: env.DATABASE_URL,
   redisUrl: env.REDIS_URL,
-  appOrigin: env.APP_ORIGIN,
+  appOrigins,
   storageDriver: env.STORAGE_DRIVER,
   localStorageDir: env.LOCAL_STORAGE_DIR,
   publicAssetBaseUrl: env.PUBLIC_ASSET_BASE_URL,

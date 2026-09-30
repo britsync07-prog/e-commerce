@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_URL="${BASE_URL:-http://127.0.0.1:4001}"
+BASE_URL="${BASE_URL:?BASE_URL is required}"
 SUBDOMAIN="${SUBDOMAIN:-live-test-shop}"
 
 shop_json=$(curl -sS -H 'Content-Type: application/json' \
@@ -30,4 +30,3 @@ curl -sS -H 'Content-Type: application/json' \
   -d '{}' \
   "$BASE_URL/api/v1/onboarding/$shop_id/launch" |
   node -e 'let s=""; process.stdin.on("data",d=>s+=d); process.stdin.on("end",()=>{const j=JSON.parse(s); console.log(`${j.shop.subdomain} ${j.shop.status} ${j.shop.selectedTemplateId}`)})'
-

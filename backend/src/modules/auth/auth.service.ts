@@ -214,7 +214,7 @@ function hashToken(token: string) {
 }
 
 function hashChallengeSecret(value: string) {
-  return createHmac("sha256", config.authOtpSecret ?? `${config.databaseUrl}:${config.appOrigin}`).update(value).digest("hex");
+  return createHmac("sha256", config.authOtpSecret ?? `${config.databaseUrl}:${config.appOrigins.join(",")}`).update(value).digest("hex");
 }
 
 function deliveryStub() {
