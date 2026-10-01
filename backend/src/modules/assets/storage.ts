@@ -1,6 +1,6 @@
 import { createHmac, createHash } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
-import { mkdir, stat, unlink } from "node:fs/promises";
+import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { pipeline } from "node:stream/promises";
 import type { Readable } from "node:stream";
@@ -20,13 +20,13 @@ export async function storeAsset(input: {
   shopId: string;
   fileName: string;
   mimeType: string;
-  stream: Readable;
+  stream: Readable | Buffer;
   maxBytes: number;
   access: AssetAccess;
 }): Promise<StoredAsset> {
   const objectKey = objectKeyFor(input.access, input.shopId, input.fileName);
   if (config.storageDriver === "s3") {
-    const body = await readLimited(input.stream, input.maxBytes);
+    const body = Buffer.isBuffer(input.stream) ? input.stream : await readLimited(input.stream, input.maxBytes);
     await putS3Object(objectKey, body, input.mimeType);
     return {
       storageDriver: "s3",
@@ -41,7 +41,8 @@ export async function storeAsset(input: {
   const path = resolve(join(root, objectKey));
   if (!path.startsWith(root)) throw new Error("Invalid storage path.");
   await mkdir(join(root, input.access, input.shopId), { recursive: true });
-  await pipeline(input.stream, createWriteStream(path));
+  if (Buffer.isBuffer(input.stream)) await writeFile(path, input.stream);
+  else await pipeline(input.stream, createWriteStream(path));
   const size = (await stat(path)).size;
   if (size > input.maxBytes) {
     await unlink(path).catch(() => undefined);
@@ -84,6 +85,19 @@ export async function signedAssetUrl(asset: { id: string; storage_driver: string
   if (asset.public_url) return asset.public_url;
   if (asset.storage_driver === "s3") return presignS3Get(asset.object_key, 300);
   return signLocalPrivateUrl(asset.id, 300);
+}
+
+export async function readLimitedAsset(stream: Readable, maxBytes: number) {
+  return readLimited(stream, maxBytes);
+}
+
+export function detectAssetMime(buffer: Buffer) {
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return "image/jpeg";
+  if (buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "image/png";
+  if (buffer.subarray(0, 6).toString("ascii") === "GIF87a" || buffer.subarray(0, 6).toString("ascii") === "GIF89a") return "image/gif";
+  if (buffer.length >= 12 && buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP") return "image/webp";
+  if (buffer.subarray(0, 5).toString("ascii") === "%PDF-") return "application/pdf";
+  return "application/octet-stream";
 }
 
 function objectKeyFor(access: AssetAccess, shopId: string, fileName: string) {

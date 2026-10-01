@@ -22,6 +22,7 @@ Request:
 - File field: `file`.
 - Allowed types: `image/jpeg`, `image/png`, `image/webp`, `image/gif`.
 - Max size: 5MB.
+- File content must match the declared MIME type.
 
 Response:
 
@@ -53,6 +54,7 @@ Errors:
 - `400 VALIDATION_ERROR`
 - `400 FILE_REQUIRED`
 - `400 UNSUPPORTED_IMAGE_TYPE`
+- `400 IMAGE_CONTENT_INVALID`
 - `401 AUTH_REQUIRED`
 - `401 SESSION_INVALID`
 - `403 SHOP_ACCESS_DENIED`
@@ -70,6 +72,7 @@ Request:
 - File field: `file`.
 - Allowed types: `image/jpeg`, `image/png`, `image/webp`, `image/gif`, `application/pdf`.
 - Max size: 10MB.
+- File content must match the declared MIME type.
 
 Response:
 
@@ -92,6 +95,7 @@ Side effects:
 Errors:
 - `400 FILE_REQUIRED`
 - `400 UNSUPPORTED_PROOF_TYPE`
+- `400 PROOF_CONTENT_INVALID`
 - `413 PROOF_TOO_LARGE`
 
 ## `GET /:shopId/files/:assetId/signed-url`

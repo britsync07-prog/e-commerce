@@ -2,12 +2,19 @@ import { extname } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { MultipartFile } from "@fastify/multipart";
 import { db } from "../../shared/db.js";
-import { signedAssetUrl, storeAsset } from "./storage.js";
+import { detectAssetMime, readLimitedAsset, signedAssetUrl, storeAsset } from "./storage.js";
 
 const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const allowedProofTypes = new Set([...allowedImageTypes, "application/pdf"]);
 const maxImageBytes = 5 * 1024 * 1024;
 const maxProofBytes = 10 * 1024 * 1024;
+const extensionsByMime = new Map([
+  ["image/jpeg", ".jpg"],
+  ["image/png", ".png"],
+  ["image/webp", ".webp"],
+  ["image/gif", ".gif"],
+  ["application/pdf", ".pdf"]
+]);
 
 export class AssetError extends Error {
   constructor(
@@ -24,12 +31,15 @@ export async function saveShopImage(shopId: string, file: MultipartFile, actorId
     throw new AssetError("Only jpg, png, webp, and gif images are allowed.", 400, "UNSUPPORTED_IMAGE_TYPE");
   }
 
-  const extension = extname(file.filename || "").toLowerCase() || ".bin";
+  const body = await readUpload(file, maxImageBytes, "IMAGE_TOO_LARGE", "Image is larger than 5MB.");
+  const detectedMime = detectAssetMime(body);
+  if (detectedMime !== file.mimetype || !allowedImageTypes.has(detectedMime)) {
+    throw new AssetError("Uploaded file content does not match an allowed image type.", 400, "IMAGE_CONTENT_INVALID");
+  }
+
+  const extension = extensionFor(file.mimetype, file.filename);
   const fileName = `${randomUUID()}${extension}`;
-  const stored = await storeAsset({ shopId, fileName, mimeType: file.mimetype, stream: file.file, maxBytes: maxImageBytes, access: "public" }).catch((error) => {
-    if ((error as { code?: string }).code === "FILE_TOO_LARGE") throw new AssetError("Image is larger than 5MB.", 413, "IMAGE_TOO_LARGE");
-    throw error;
-  });
+  const stored = await storeAsset({ shopId, fileName, mimeType: file.mimetype, stream: body, maxBytes: maxImageBytes, access: "public" });
 
   const result = await db.query(
     `
@@ -58,12 +68,15 @@ export async function savePaymentProof(shopId: string, file: MultipartFile, acto
     throw new AssetError("Only jpg, png, webp, gif, and pdf proof files are allowed.", 400, "UNSUPPORTED_PROOF_TYPE");
   }
 
-  const extension = extname(file.filename || "").toLowerCase() || ".bin";
+  const body = await readUpload(file, maxProofBytes, "PROOF_TOO_LARGE", "Proof file is larger than 10MB.");
+  const detectedMime = detectAssetMime(body);
+  if (detectedMime !== file.mimetype || !allowedProofTypes.has(detectedMime)) {
+    throw new AssetError("Uploaded file content does not match an allowed proof type.", 400, "PROOF_CONTENT_INVALID");
+  }
+
+  const extension = extensionFor(file.mimetype, file.filename);
   const fileName = `${randomUUID()}${extension}`;
-  const stored = await storeAsset({ shopId, fileName, mimeType: file.mimetype, stream: file.file, maxBytes: maxProofBytes, access: "private" }).catch((error) => {
-    if ((error as { code?: string }).code === "FILE_TOO_LARGE") throw new AssetError("Proof file is larger than 10MB.", 413, "PROOF_TOO_LARGE");
-    throw error;
-  });
+  const stored = await storeAsset({ shopId, fileName, mimeType: file.mimetype, stream: body, maxBytes: maxProofBytes, access: "private" });
 
   const result = await db.query(
     `
@@ -119,4 +132,16 @@ export async function removeProductImage(shopId: string, productId: string, imag
     [shopId, actorId, productId, { imageId, assetId: image.rows[0].asset_id }]
   );
   return { removed: image.rows[0] };
+}
+
+async function readUpload(file: MultipartFile, maxBytes: number, tooLargeCode: string, tooLargeMessage: string) {
+  return readLimitedAsset(file.file, maxBytes).catch((error) => {
+    if ((error as { code?: string }).code === "FILE_TOO_LARGE") throw new AssetError(tooLargeMessage, 413, tooLargeCode);
+    throw error;
+  });
+}
+
+function extensionFor(mimeType: string, filename?: string) {
+  const extension = extensionsByMime.get(mimeType) ?? extname(filename || "").toLowerCase();
+  return extension || ".bin";
 }
