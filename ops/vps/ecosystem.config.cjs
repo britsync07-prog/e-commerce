@@ -34,7 +34,13 @@ module.exports = {
         METRICS_TOKEN: requireEnv("METRICS_TOKEN"),
         AUTH_OTP_SECRET: requireEnv("AUTH_OTP_SECRET"),
         OTP_DELIVERY_WEBHOOK_URL: process.env.OTP_DELIVERY_WEBHOOK_URL,
-        OTP_DELIVERY_TIMEOUT_MS: process.env.OTP_DELIVERY_TIMEOUT_MS
+        OTP_DELIVERY_TIMEOUT_MS: process.env.OTP_DELIVERY_TIMEOUT_MS,
+        AUTH_COOKIE_ENABLED: process.env.AUTH_COOKIE_ENABLED,
+        AUTH_COOKIE_NAME: process.env.AUTH_COOKIE_NAME,
+        AUTH_CSRF_COOKIE_NAME: process.env.AUTH_CSRF_COOKIE_NAME,
+        AUTH_COOKIE_DOMAIN: process.env.AUTH_COOKIE_DOMAIN,
+        AUTH_COOKIE_SAME_SITE: process.env.AUTH_COOKIE_SAME_SITE,
+        AUTH_COOKIE_SECURE: process.env.AUTH_COOKIE_SECURE
       }
     },
     {
@@ -61,7 +67,13 @@ module.exports = {
         METRICS_TOKEN: requireEnv("METRICS_TOKEN"),
         AUTH_OTP_SECRET: requireEnv("AUTH_OTP_SECRET"),
         OTP_DELIVERY_WEBHOOK_URL: process.env.OTP_DELIVERY_WEBHOOK_URL,
-        OTP_DELIVERY_TIMEOUT_MS: process.env.OTP_DELIVERY_TIMEOUT_MS
+        OTP_DELIVERY_TIMEOUT_MS: process.env.OTP_DELIVERY_TIMEOUT_MS,
+        AUTH_COOKIE_ENABLED: process.env.AUTH_COOKIE_ENABLED,
+        AUTH_COOKIE_NAME: process.env.AUTH_COOKIE_NAME,
+        AUTH_CSRF_COOKIE_NAME: process.env.AUTH_CSRF_COOKIE_NAME,
+        AUTH_COOKIE_DOMAIN: process.env.AUTH_COOKIE_DOMAIN,
+        AUTH_COOKIE_SAME_SITE: process.env.AUTH_COOKIE_SAME_SITE,
+        AUTH_COOKIE_SECURE: process.env.AUTH_COOKIE_SECURE
       }
     },
     {

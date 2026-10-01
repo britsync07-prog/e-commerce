@@ -14,6 +14,7 @@ Auth:
 - `POST /register` and `POST /login` are public.
 - `POST /verification/confirm`, `POST /password-reset/request`, and `POST /password-reset/confirm` are public.
 - `GET /me`, `POST /logout`, `GET /sessions`, `POST /sessions/revoke-all`, `POST /sessions/:sessionId/revoke`, and `POST /verification/request` require `Authorization: Bearer <token>`.
+- If `AUTH_COOKIE_ENABLED=true`, `POST /login` also sets a secure HttpOnly session cookie and a readable CSRF cookie. Cookie-authenticated unsafe requests must send `X-CSRF-Token` with the CSRF cookie value.
 
 Password rule:
 - 12-200 characters.
@@ -34,6 +35,9 @@ Request:
 
 Response:
 - `201`
+- When browser cookies are enabled, also sets:
+  - `AUTH_COOKIE_NAME`: HttpOnly session cookie.
+  - `AUTH_CSRF_COOKIE_NAME`: readable CSRF cookie for the `X-CSRF-Token` header.
 
 ```json
 {

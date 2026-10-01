@@ -8,6 +8,7 @@ import multipart from "@fastify/multipart";
 import { config } from "./shared/config.js";
 import { requestContextHook } from "./shared/request-context.js";
 import { metricsOnRequest, metricsOnResponse } from "./shared/metrics.js";
+import { browserSessionHook } from "./shared/browser-session.js";
 import { registerAssetRoutes } from "./modules/assets/assets.routes.js";
 import { registerAuthRoutes } from "./modules/auth/auth.routes.js";
 import { registerAnalyticsRoutes } from "./modules/analytics/analytics.routes.js";
@@ -39,10 +40,11 @@ export async function buildApp() {
 
   app.addHook("onRequest", requestContextHook);
   app.addHook("onRequest", metricsOnRequest);
+  app.addHook("onRequest", browserSessionHook);
   app.addHook("onResponse", metricsOnResponse);
 
   await app.register(helmet);
-  await app.register(cors, { origin: config.appOrigins });
+  await app.register(cors, { origin: config.appOrigins, credentials: config.authCookieEnabled });
   await app.register(multipart, {
     limits: {
       fileSize: 5 * 1024 * 1024,

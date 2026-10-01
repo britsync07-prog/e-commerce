@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z, ZodError, type ZodTypeAny } from "zod";
 import { AuthError, bearerToken, confirmPasswordReset, confirmVerification, getSession, listSessions, login, logout, registerUser, requestPasswordReset, requestVerification, revokeAllSessions, revokeSession } from "./auth.service.js";
 import { loginSchema, passwordResetConfirmSchema, passwordResetRequestSchema, registerSchema, verificationConfirmSchema, verificationRequestSchema } from "./auth.validators.js";
+import { clearBrowserSessionCookies, setBrowserSessionCookies } from "../../shared/browser-session.js";
 
 function parse<T extends ZodTypeAny>(schema: T, value: unknown) {
   return schema.parse(value) as T["_output"];
@@ -27,10 +28,12 @@ export async function registerAuthRoutes(app: FastifyInstance) {
   app.post("/login", { config: { rateLimit: { max: 10, timeWindow: "15 minutes" } } }, async (request, reply) => {
     try {
       const body = parse(loginSchema, request.body);
-      return login(body, {
+      const result = await login(body, {
         userAgent: request.headers["user-agent"],
         ipAddress: request.ip
       });
+      setBrowserSessionCookies(reply, result.token);
+      return result;
     } catch (error) {
       const result = handleError(error);
       return reply.code(result.statusCode).send(result.body);
@@ -48,7 +51,9 @@ export async function registerAuthRoutes(app: FastifyInstance) {
 
   app.post("/logout", async (request, reply) => {
     try {
-      return logout(bearerToken(request.headers.authorization));
+      const result = await logout(bearerToken(request.headers.authorization));
+      clearBrowserSessionCookies(reply);
+      return result;
     } catch (error) {
       const result = handleError(error);
       return reply.code(result.statusCode).send(result.body);

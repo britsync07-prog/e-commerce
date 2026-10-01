@@ -34,11 +34,18 @@ const schema = z.object({
   META_TOKEN_ENCRYPTION_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/).optional(),
   AUTH_OTP_SECRET: z.string().min(32).optional(),
   OTP_DELIVERY_WEBHOOK_URL: z.string().url().optional(),
-  OTP_DELIVERY_TIMEOUT_MS: z.coerce.number().int().positive().default(5000)
+  OTP_DELIVERY_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
+  AUTH_COOKIE_ENABLED: z.enum(["true", "false"]).default("false"),
+  AUTH_COOKIE_NAME: z.string().min(1).default("fcommerce_session"),
+  AUTH_CSRF_COOKIE_NAME: z.string().min(1).default("fcommerce_csrf"),
+  AUTH_COOKIE_DOMAIN: z.string().min(1).optional(),
+  AUTH_COOKIE_SAME_SITE: z.enum(["lax", "strict", "none"]).default("lax"),
+  AUTH_COOKIE_SECURE: z.enum(["true", "false"]).optional()
 });
 
 const env = schema.parse(process.env);
 const appOrigins = env.APP_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean);
+const authCookieSecure = env.AUTH_COOKIE_SECURE ? env.AUTH_COOKIE_SECURE === "true" : env.NODE_ENV === "production";
 
 for (const origin of appOrigins) {
   try {
@@ -56,6 +63,10 @@ if (env.NODE_ENV === "production") {
   if (!env.ASSET_SIGNING_SECRET) throw new Error("ASSET_SIGNING_SECRET is required in production.");
   if (!env.METRICS_TOKEN) throw new Error("METRICS_TOKEN is required in production.");
   if (!env.AUTH_OTP_SECRET) throw new Error("AUTH_OTP_SECRET is required in production.");
+}
+
+if (env.AUTH_COOKIE_SAME_SITE === "none" && !authCookieSecure) {
+  throw new Error("AUTH_COOKIE_SAME_SITE=none requires AUTH_COOKIE_SECURE=true.");
 }
 
 if (env.STORAGE_DRIVER === "s3") {
@@ -94,5 +105,11 @@ export const config = {
   metaTokenEncryptionKey: env.META_TOKEN_ENCRYPTION_KEY,
   authOtpSecret: env.AUTH_OTP_SECRET,
   otpDeliveryWebhookUrl: env.OTP_DELIVERY_WEBHOOK_URL,
-  otpDeliveryTimeoutMs: env.OTP_DELIVERY_TIMEOUT_MS
+  otpDeliveryTimeoutMs: env.OTP_DELIVERY_TIMEOUT_MS,
+  authCookieEnabled: env.AUTH_COOKIE_ENABLED === "true",
+  authCookieName: env.AUTH_COOKIE_NAME,
+  authCsrfCookieName: env.AUTH_CSRF_COOKIE_NAME,
+  authCookieDomain: env.AUTH_COOKIE_DOMAIN,
+  authCookieSameSite: env.AUTH_COOKIE_SAME_SITE,
+  authCookieSecure
 };

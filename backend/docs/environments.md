@@ -35,6 +35,8 @@ Rules:
 - `ASSET_SIGNING_SECRET` signs private local asset URLs.
 - `AUTH_OTP_SECRET` signs OTP challenges and must be unique per environment.
 - `OTP_DELIVERY_WEBHOOK_URL` enables real OTP delivery. Without it, delivery returns `not_connected`; production still never returns dev OTP codes.
+- `AUTH_COOKIE_ENABLED=true` enables secure HttpOnly browser session cookies. Cookie-authenticated unsafe requests must send `X-CSRF-Token` matching the CSRF cookie.
+- `AUTH_COOKIE_DOMAIN`, `AUTH_COOKIE_NAME`, `AUTH_CSRF_COOKIE_NAME`, `AUTH_COOKIE_SAME_SITE`, and `AUTH_COOKIE_SECURE` control browser session behavior per environment.
 - `STORAGE_DRIVER=s3` requires `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, and `S3_SECRET_ACCESS_KEY`.
 - Swagger UI is disabled in production.
 - Secrets must come from deploy environment or secret manager, not source code.
