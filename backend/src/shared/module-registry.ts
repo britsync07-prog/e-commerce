@@ -137,5 +137,6 @@ export const backendModules: BackendModule[] = [
   { key: "ai", name: "AI command center", status: "active", owns: ["command records", "risk classification", "source citations", "action approvals", "review-only ad creative drafts"], apiBase: "/api/v1/ai", apiDoc: "ai.md", phase: "p1" },
   { key: "settings", name: "Settings, billing, and security", status: "active", owns: ["policies", "security", "billing usage", "sessions", "external connections"], apiBase: "/api/v1/shops", apiDoc: "shops.md", phase: "foundation" },
   { key: "jobs", name: "Workers and jobs", status: "active", owns: ["queues", "retries", "dead letters", "operator retry"], apiBase: "/api/v1/jobs", apiDoc: "jobs.md", phase: "foundation" },
-  { key: "legal", name: "Legal, privacy, and consent", status: "active", owns: ["legal policies", "cookie consent", "privacy requests"], apiBase: "/api/v1/legal", apiDoc: "legal.md", phase: "p1" }
+  { key: "legal", name: "Legal, privacy, and consent", status: "active", owns: ["legal policies", "cookie consent", "privacy requests"], apiBase: "/api/v1/legal", apiDoc: "legal.md", phase: "p1" },
+  { key: "approvals", name: "Risky action approvals", status: "active", owns: ["approval inbox", "risky action preview", "approve/reject audit"], apiBase: "/api/v1/approvals", apiDoc: "approvals.md", phase: "foundation" }
 ];

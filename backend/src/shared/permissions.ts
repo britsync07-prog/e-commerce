@@ -28,6 +28,8 @@ export const permissions = [
   "legal:write",
   "privacy:read",
   "privacy:write",
+  "approvals:read",
+  "approvals:write",
   "exports:run"
 ] as const;
 

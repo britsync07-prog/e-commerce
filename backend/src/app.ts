@@ -31,6 +31,7 @@ import { registerWebhookRoutes } from "./modules/webhooks/webhooks.routes.js";
 import { registerAiRoutes } from "./modules/ai/ai.routes.js";
 import { registerJobsRoutes } from "./modules/jobs/jobs.routes.js";
 import { registerLegalRoutes } from "./modules/legal/legal.routes.js";
+import { registerApprovalRoutes } from "./modules/approvals/approvals.routes.js";
 
 export async function buildApp() {
   const app = Fastify({
@@ -91,6 +92,7 @@ export async function buildApp() {
   await app.register(registerAiRoutes, { prefix: "/api/v1/ai" });
   await app.register(registerJobsRoutes, { prefix: "/api/v1/jobs" });
   await app.register(registerLegalRoutes, { prefix: "/api/v1/legal" });
+  await app.register(registerApprovalRoutes, { prefix: "/api/v1/approvals" });
 
   return app;
 }
