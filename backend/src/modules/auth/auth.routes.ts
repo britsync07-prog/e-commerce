@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z, ZodError, type ZodTypeAny } from "zod";
-import { AuthError, bearerToken, confirmPasswordReset, confirmVerification, getSession, listSessions, login, logout, registerUser, requestPasswordReset, requestVerification, revokeSession } from "./auth.service.js";
+import { AuthError, bearerToken, confirmPasswordReset, confirmVerification, getSession, listSessions, login, logout, registerUser, requestPasswordReset, requestVerification, revokeAllSessions, revokeSession } from "./auth.service.js";
 import { loginSchema, passwordResetConfirmSchema, passwordResetRequestSchema, registerSchema, verificationConfirmSchema, verificationRequestSchema } from "./auth.validators.js";
 
 function parse<T extends ZodTypeAny>(schema: T, value: unknown) {
@@ -98,6 +98,10 @@ export async function registerAuthRoutes(app: FastifyInstance) {
 
   app.get("/sessions", async (request, reply) => {
     try { const session = await getSession(bearerToken(request.headers.authorization)); return listSessions(session.user.id as string); }
+    catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
+  });
+  app.post("/sessions/revoke-all", async (request, reply) => {
+    try { const session = await getSession(bearerToken(request.headers.authorization)); return revokeAllSessions(session.user.id as string, session.session.id as string); }
     catch (error) { const result = handleError(error); return reply.code(result.statusCode).send(result.body); }
   });
   app.post("/sessions/:sessionId/revoke", async (request, reply) => {

@@ -13,7 +13,11 @@ Purpose:
 Auth:
 - `POST /register` and `POST /login` are public.
 - `POST /verification/confirm`, `POST /password-reset/request`, and `POST /password-reset/confirm` are public.
-- `GET /me`, `POST /logout`, `GET /sessions`, `POST /sessions/:sessionId/revoke`, and `POST /verification/request` require `Authorization: Bearer <token>`.
+- `GET /me`, `POST /logout`, `GET /sessions`, `POST /sessions/revoke-all`, `POST /sessions/:sessionId/revoke`, and `POST /verification/request` require `Authorization: Bearer <token>`.
+
+Password rule:
+- 12-200 characters.
+- Includes lowercase, uppercase, number, and symbol.
 
 ## `POST /register`
 
@@ -23,7 +27,7 @@ Request:
 {
   "name": "Nafis",
   "email": "nafis@example.com",
-  "password": "strong-password",
+  "password": "StrongPass123!",
   "language": "en"
 }
 ```
@@ -96,6 +100,8 @@ Response:
 Side effects:
 - Expires older pending verification challenges for that user and channel.
 - Inserts `auth_challenges`.
+- Sends OTP through `OTP_DELIVERY_WEBHOOK_URL` when configured.
+- Does not return `devCode` in production.
 
 Audit/timeline: Writes `auth_events.verification_requested`.
 
@@ -106,6 +112,7 @@ Errors:
 - `401 AUTH_REQUIRED`
 - `401 SESSION_INVALID`
 - `409 CONTACT_METHOD_MISSING`
+- `502 OTP_DELIVERY_FAILED`
 - `429 RATE_LIMITED`
 
 ## `POST /verification/confirm`
@@ -198,7 +205,7 @@ Request:
 {
   "identifier": "nafis@example.com",
   "code": "123456",
-  "newPassword": "new-strong-password"
+  "newPassword": "NewStrongPass123!"
 }
 ```
 
@@ -340,6 +347,20 @@ Side effects: None.
 Audit/timeline: Login and logout events are stored in `auth_events`; this read does not write an event.
 
 Cache: Do not cache longer than the current screen session.
+
+Errors: `AUTH_REQUIRED`, `SESSION_INVALID`.
+
+## `POST /sessions/revoke-all`
+
+Purpose: Revoke all other sessions for the authenticated user while keeping the current session active.
+
+Auth: Bearer session required.
+
+Request: No body.
+
+Response: `{ "ok": true, "revoked": 2 }`.
+
+Side effects: Sets `revoked_at` on other active sessions and writes `auth_events.sessions_revoked_all`.
 
 Errors: `AUTH_REQUIRED`, `SESSION_INVALID`.
 

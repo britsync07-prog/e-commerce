@@ -26,12 +26,15 @@ Required:
 - `APP_ORIGIN`
 - `STORAGE_DRIVER`
 - `ASSET_SIGNING_SECRET`
+- `AUTH_OTP_SECRET`
 
 Rules:
 
 - `APP_ORIGIN` is comma-separated and must contain only real HTTPS origins.
 - `APP_ORIGIN` must not contain localhost in production.
 - `ASSET_SIGNING_SECRET` signs private local asset URLs.
+- `AUTH_OTP_SECRET` signs OTP challenges and must be unique per environment.
+- `OTP_DELIVERY_WEBHOOK_URL` enables real OTP delivery. Without it, delivery returns `not_connected`; production still never returns dev OTP codes.
 - `STORAGE_DRIVER=s3` requires `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, and `S3_SECRET_ACCESS_KEY`.
 - Swagger UI is disabled in production.
 - Secrets must come from deploy environment or secret manager, not source code.

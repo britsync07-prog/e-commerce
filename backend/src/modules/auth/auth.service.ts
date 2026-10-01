@@ -127,6 +127,15 @@ export async function revokeSession(userId: string, sessionId: string) {
   return { ok: true, sessionId };
 }
 
+export async function revokeAllSessions(userId: string, currentSessionId: string) {
+  const result = await db.query(
+    "update user_sessions set revoked_at = now() where user_id = $1 and id <> $2 and revoked_at is null returning id",
+    [userId, currentSessionId]
+  );
+  await db.query("insert into auth_events (user_id, event_type, metadata) values ($1, 'sessions_revoked_all', $2)", [userId, JSON.stringify({ count: result.rowCount })]);
+  return { ok: true, revoked: result.rowCount };
+}
+
 export async function requestVerification(userId: string, channel: "email" | "phone") {
   const result = await db.query("select id, email, phone from users where id = $1 limit 1", [userId]);
   if (!result.rowCount) throw new AuthError("User not found.", 404, "USER_NOT_FOUND");
@@ -160,8 +169,8 @@ export async function requestPasswordReset(identifierInput: string, meta: { user
   const destination = destinationType === "email" ? row.email : row.phone;
   if (!destination) return { ok: true, delivery: deliveryStub() };
 
-  await createChallenge({ userId: row.id, purpose: "password_reset", destinationType, destination, eventType: "password_reset_requested", meta });
-  return { ok: true, delivery: deliveryStub() };
+  const challenge = await createChallenge({ userId: row.id, purpose: "password_reset", destinationType, destination, eventType: "password_reset_requested", meta });
+  return { ok: true, delivery: challenge.delivery };
 }
 
 export async function confirmPasswordReset(input: { identifier: string; code: string; newPassword: string }, meta: { userAgent?: string; ipAddress?: string }) {
@@ -221,6 +230,33 @@ function deliveryStub() {
   return { status: "queued", provider: "not_connected" };
 }
 
+async function deliverOtp(input: { purpose: string; destinationType: "email" | "phone"; destination: string; code: string; expiresAt: Date }) {
+  if (!config.otpDeliveryWebhookUrl) return deliveryStub();
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), config.otpDeliveryTimeoutMs);
+  try {
+    const response = await fetch(config.otpDeliveryWebhookUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        purpose: input.purpose,
+        destinationType: input.destinationType,
+        destination: input.destination,
+        code: input.code,
+        expiresAt: input.expiresAt.toISOString()
+      }),
+      signal: controller.signal
+    });
+    if (!response.ok) throw new Error(`OTP provider returned ${response.status}`);
+    return { status: "queued", provider: "webhook" };
+  } catch {
+    throw new AuthError("OTP delivery failed.", 502, "OTP_DELIVERY_FAILED");
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function createChallenge(input: { userId: string; purpose: string; destinationType: "email" | "phone"; destination: string; eventType: string; meta?: { userAgent?: string; ipAddress?: string } }) {
   const code = String(randomInt(100000, 1000000));
   const expiresAt = new Date(Date.now() + challengeTtlMinutes * 60 * 1000);
@@ -237,9 +273,10 @@ async function createChallenge(input: { userId: string; purpose: string; destina
     "insert into auth_events (user_id, event_type, ip_address, user_agent, metadata) values ($1, $2, $3, $4, $5)",
     [input.userId, input.eventType, input.meta?.ipAddress ?? null, input.meta?.userAgent ?? null, JSON.stringify({ challengeId: challenge.rows[0].id, destinationType: input.destinationType })]
   );
+  const delivery = await deliverOtp({ purpose: input.purpose, destinationType: input.destinationType, destination: input.destination, code, expiresAt });
   return {
     challenge: challenge.rows[0],
-    delivery: deliveryStub(),
+    delivery,
     ...(config.nodeEnv === "production" ? {} : { devCode: code })
   };
 }

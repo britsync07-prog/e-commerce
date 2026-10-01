@@ -32,7 +32,9 @@ const schema = z.object({
   META_OAUTH_SCOPES: z.string().default("pages_show_list,pages_read_engagement,pages_manage_metadata"),
   META_GRAPH_VERSION: z.string().regex(/^v\d+\.\d+$/).default("v23.0"),
   META_TOKEN_ENCRYPTION_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/).optional(),
-  AUTH_OTP_SECRET: z.string().min(32).optional()
+  AUTH_OTP_SECRET: z.string().min(32).optional(),
+  OTP_DELIVERY_WEBHOOK_URL: z.string().url().optional(),
+  OTP_DELIVERY_TIMEOUT_MS: z.coerce.number().int().positive().default(5000)
 });
 
 const env = schema.parse(process.env);
@@ -53,6 +55,7 @@ if (env.NODE_ENV === "production") {
   }
   if (!env.ASSET_SIGNING_SECRET) throw new Error("ASSET_SIGNING_SECRET is required in production.");
   if (!env.METRICS_TOKEN) throw new Error("METRICS_TOKEN is required in production.");
+  if (!env.AUTH_OTP_SECRET) throw new Error("AUTH_OTP_SECRET is required in production.");
 }
 
 if (env.STORAGE_DRIVER === "s3") {
@@ -89,5 +92,7 @@ export const config = {
   metaOAuthScopes: env.META_OAUTH_SCOPES,
   metaGraphVersion: env.META_GRAPH_VERSION,
   metaTokenEncryptionKey: env.META_TOKEN_ENCRYPTION_KEY,
-  authOtpSecret: env.AUTH_OTP_SECRET
+  authOtpSecret: env.AUTH_OTP_SECRET,
+  otpDeliveryWebhookUrl: env.OTP_DELIVERY_WEBHOOK_URL,
+  otpDeliveryTimeoutMs: env.OTP_DELIVERY_TIMEOUT_MS
 };

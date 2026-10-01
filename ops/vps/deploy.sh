@@ -80,6 +80,7 @@ export STORAGE_DRIVER="${STORAGE_DRIVER:?STORAGE_DRIVER is required for producti
 export LOCAL_STORAGE_DIR="${LOCAL_STORAGE_DIR:?LOCAL_STORAGE_DIR is required for production deploy}"
 export ASSET_SIGNING_SECRET="${ASSET_SIGNING_SECRET:?ASSET_SIGNING_SECRET is required for production deploy}"
 export METRICS_TOKEN="${METRICS_TOKEN:?METRICS_TOKEN is required for production deploy}"
+export AUTH_OTP_SECRET="${AUTH_OTP_SECRET:?AUTH_OTP_SECRET is required for production deploy}"
 export STOREFRONT_PORT="${STOREFRONT_PORT:?STOREFRONT_PORT is required for production deploy}"
 export STOREFRONT_HOST="${STOREFRONT_HOST:?STOREFRONT_HOST is required for production deploy}"
 export STOREFRONT_BACKEND_URL="${STOREFRONT_BACKEND_URL:?STOREFRONT_BACKEND_URL is required for production deploy}"

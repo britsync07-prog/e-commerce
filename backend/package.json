@@ -13,7 +13,7 @@
     "check:full": "npm run check:api-docs && npm run check:migrations && npm run build && npm run db:migrate && npm run db:migrate && node scripts/run-db-smokes.mjs",
     "check:api-docs": "node scripts/check-api-docs.mjs",
     "check:migrations": "node scripts/check-migrations.mjs",
-    "test": "npm run build && node test/assets-storage-smoke.mjs && node test/metrics-smoke.mjs && node test/onboarding.integration.mjs",
+    "test": "npm run build && node test/assets-storage-smoke.mjs && node test/auth-validators-smoke.mjs && node test/metrics-smoke.mjs && node test/onboarding.integration.mjs",
     "test:db": "npm run build && node scripts/run-db-smokes.mjs",
     "test:auth-db": "npm run build && node test/auth-db-smoke.mjs",
     "test:catalog-db": "npm run build && node test/catalog-db-smoke.mjs",

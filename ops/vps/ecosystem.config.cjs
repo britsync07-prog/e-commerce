@@ -31,7 +31,10 @@ module.exports = {
         S3_PUBLIC_BASE_URL: process.env.S3_PUBLIC_BASE_URL,
         STORAGE_PUBLIC_PREFIX: process.env.STORAGE_PUBLIC_PREFIX,
         STORAGE_PRIVATE_PREFIX: process.env.STORAGE_PRIVATE_PREFIX,
-        METRICS_TOKEN: requireEnv("METRICS_TOKEN")
+        METRICS_TOKEN: requireEnv("METRICS_TOKEN"),
+        AUTH_OTP_SECRET: requireEnv("AUTH_OTP_SECRET"),
+        OTP_DELIVERY_WEBHOOK_URL: process.env.OTP_DELIVERY_WEBHOOK_URL,
+        OTP_DELIVERY_TIMEOUT_MS: process.env.OTP_DELIVERY_TIMEOUT_MS
       }
     },
     {
@@ -55,7 +58,10 @@ module.exports = {
         S3_PUBLIC_BASE_URL: process.env.S3_PUBLIC_BASE_URL,
         STORAGE_PUBLIC_PREFIX: process.env.STORAGE_PUBLIC_PREFIX,
         STORAGE_PRIVATE_PREFIX: process.env.STORAGE_PRIVATE_PREFIX,
-        METRICS_TOKEN: requireEnv("METRICS_TOKEN")
+        METRICS_TOKEN: requireEnv("METRICS_TOKEN"),
+        AUTH_OTP_SECRET: requireEnv("AUTH_OTP_SECRET"),
+        OTP_DELIVERY_WEBHOOK_URL: process.env.OTP_DELIVERY_WEBHOOK_URL,
+        OTP_DELIVERY_TIMEOUT_MS: process.env.OTP_DELIVERY_TIMEOUT_MS
       }
     },
     {
