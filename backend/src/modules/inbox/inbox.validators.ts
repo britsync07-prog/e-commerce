@@ -42,3 +42,18 @@ export const reviewDraftSchema = z.object({
   status: z.enum(["approved", "rejected"]),
   note: z.string().trim().max(500).optional()
 });
+
+export const updateAiBrainSchema = z.object({
+  enabled: z.boolean().optional(),
+  shopName: z.string().trim().max(120).optional(),
+  tone: z.enum(["friendly", "formal", "polite", "enthusiastic"]).optional(),
+  language: z.enum(["bn", "en", "banglish", "auto"]).optional(),
+  systemPrompt: z.string().trim().max(2000).optional(),
+  confidenceThreshold: z.coerce.number().min(0.1).max(1.0).optional(),
+  fallbackMessage: z.string().trim().max(500).optional()
+});
+
+export const toggleAiSchema = z.object({
+  aiEnabled: z.boolean()
+});
+

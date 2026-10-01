@@ -314,3 +314,127 @@ Errors:
 - `401 AUTH_REQUIRED`
 - `403 PERMISSION_DENIED`
 - `404 DRAFT_NOT_FOUND`
+
+## `GET /shops/:shopId/ai-brain`
+
+Purpose:
+- Retrieve the shop's AI Brain configuration (tone, language, persona, system prompt, and fallback message).
+
+Auth:
+- Requires Bearer auth and `inbox:read` permission.
+
+Request:
+- Path `shopId`: shop UUID.
+
+Response:
+- `200`
+```json
+{
+  "aiBrain": {
+    "enabled": true,
+    "shopName": "Saimon Fashion",
+    "tone": "friendly",
+    "language": "auto",
+    "systemPrompt": "You are a helpful sales assistant...",
+    "confidenceThreshold": 0.70,
+    "fallbackMessage": "ধন্যবাদ আপনার বার্তার জন্য!"
+  }
+}
+```
+
+Side effects:
+- None.
+
+Audit/timeline:
+- None for read.
+
+Cache:
+- Client-side cache allowed for settings screen.
+
+Errors:
+- `401 AUTH_REQUIRED`
+- `403 PERMISSION_DENIED`
+- `404 SHOP_NOT_FOUND`
+
+## `PATCH /shops/:shopId/ai-brain`
+
+Purpose:
+- Update the shop's AI Brain configuration.
+
+Auth:
+- Requires Bearer auth and `inbox:write` permission.
+
+Request:
+```json
+{
+  "enabled": true,
+  "shopName": "Saimon Fashion",
+  "tone": "polite",
+  "systemPrompt": "Custom sales persona and rules...",
+  "confidenceThreshold": 0.75,
+  "fallbackMessage": "Custom fallback..."
+}
+```
+
+Response:
+- `200` with updated `aiBrain` object.
+
+Side effects:
+- Updates `shops.ai_brain` column.
+- Writes audit action `inbox.ai_brain_updated`.
+
+Audit/timeline:
+- Audit target type: `shop`.
+
+Cache:
+- Do not cache. Invalidate settings cache.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `403 PERMISSION_DENIED`
+- `404 SHOP_NOT_FOUND`
+
+## `PATCH /shops/:shopId/conversations/:conversationId/ai-toggle`
+
+Purpose:
+- Turn AI auto-reply ON or OFF for a specific customer conversation.
+
+Auth:
+- Requires Bearer auth and `inbox:write` permission.
+
+Request:
+```json
+{
+  "aiEnabled": false
+}
+```
+
+Response:
+- `200`
+```json
+{
+  "conversation": {
+    "id": "uuid",
+    "ai_enabled": false,
+    "ai_paused": false
+  }
+}
+```
+
+Side effects:
+- Updates `conversations.ai_enabled`.
+- Writes audit action `inbox.conversation_ai_toggled`.
+
+Audit/timeline:
+- Audit target type: `conversation`.
+
+Cache:
+- Invalidate conversation detail cache.
+
+Errors:
+- `400 VALIDATION_ERROR`
+- `401 AUTH_REQUIRED`
+- `403 PERMISSION_DENIED`
+- `404 CONVERSATION_NOT_FOUND`
+

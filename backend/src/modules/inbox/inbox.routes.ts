@@ -7,10 +7,13 @@ import {
   assignConversation,
   createConversation,
   generateDraft,
+  getAiBrain,
   getConversation,
   InboxError,
   listConversations,
-  reviewDraft
+  reviewDraft,
+  toggleConversationAi,
+  updateAiBrain
 } from "./inbox.service.js";
 import {
   addMessageSchema,
@@ -20,6 +23,8 @@ import {
   draftParamsSchema,
   reviewDraftSchema,
   shopParamsSchema,
+  toggleAiSchema,
+  updateAiBrainSchema,
   updateAssignmentSchema
 } from "./inbox.validators.js";
 
@@ -116,4 +121,40 @@ export async function registerInboxRoutes(app: FastifyInstance) {
       return reply.code(result.statusCode).send(result.body);
     }
   });
+
+  app.get("/shops/:shopId/ai-brain", async (request, reply) => {
+    try {
+      const params = parse(shopParamsSchema, request.params);
+      await requireShopPermission(request, params.shopId, "inbox:read");
+      return getAiBrain(params.shopId);
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.patch("/shops/:shopId/ai-brain", async (request, reply) => {
+    try {
+      const params = parse(shopParamsSchema, request.params);
+      const body = parse(updateAiBrainSchema, request.body);
+      const session = await requireShopPermission(request, params.shopId, "inbox:write");
+      return updateAiBrain(params.shopId, body, session.user.id as string);
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.patch("/shops/:shopId/conversations/:conversationId/ai-toggle", async (request, reply) => {
+    try {
+      const params = parse(conversationParamsSchema, request.params);
+      const body = parse(toggleAiSchema, request.body);
+      const session = await requireShopPermission(request, params.shopId, "inbox:write");
+      return toggleConversationAi(params.shopId, params.conversationId, body.aiEnabled, session.user.id as string);
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
 }
+

@@ -2,6 +2,8 @@ import { completeJob, claimNextJob, failJob, recordWorkerHeartbeat } from "./mod
 import { markCommentActionNotConnected } from "./modules/comments/comments.service.js";
 import { markCourierShipmentNotConnected } from "./modules/delivery/delivery.service.js";
 import { markMetaCatalogSyncNotConnected, processMetaWebhookEvent } from "./modules/meta/meta.service.js";
+import { embedAndIndexProductImage } from "./modules/ai/product-embedding.service.js";
+import { processMessengerReplyJob, type MessengerReplyJobPayload } from "./modules/inbox/messenger-reply.service.js";
 import { fileURLToPath } from "node:url";
 
 const workerId = process.env.WORKER_ID ?? `worker-${process.pid}`;
@@ -39,6 +41,15 @@ async function handle(queue: string, jobType: string, payload: unknown) {
   if (queue === "comments" && jobType === "comment.action.dispatch") { await markCommentActionNotConnected(payloadValue(payload, "actionId")); return; }
   if (queue === "courier" && jobType === "courier.shipment.book") { await markCourierShipmentNotConnected(payloadValue(payload, "shipmentId")); return; }
   if (queue === "imports" && jobType === "meta.catalog.sync") { await markMetaCatalogSyncNotConnected(payloadValue(payload, "catalogSyncId")); return; }
+  if (queue === "catalog" && jobType === "catalog.image.embed") {
+    const p = payload as Record<string, string>;
+    await embedAndIndexProductImage(p.shopId, p.productId, p.assetId ?? null, p.imageUrl);
+    return;
+  }
+  if (queue === "messenger" && jobType === "messenger.reply.process") {
+    await processMessengerReplyJob(payload as MessengerReplyJobPayload);
+    return;
+  }
   void payload;
   throw new Error(`Unsupported job type: ${queue}.${jobType}`);
 }

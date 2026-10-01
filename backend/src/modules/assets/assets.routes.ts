@@ -7,7 +7,7 @@ import { config } from "../../shared/config.js";
 import { db } from "../../shared/db.js";
 import { PermissionError, requireShopPermission } from "../../shared/permissions.js";
 import { AuthError } from "../auth/auth.service.js";
-import { AssetError, attachProductImage, createSignedAssetUrl, removeProductImage, savePaymentProof, saveShopImage } from "./assets.service.js";
+import { AssetError, attachProductImage, createSignedAssetUrl, removeProductImage, savePaymentProof, saveShopImage, updateProductImage } from "./assets.service.js";
 import { localPrivateStream, verifyLocalPrivateUrl } from "./storage.js";
 
 const paramsSchema = z.object({
@@ -17,6 +17,7 @@ const productImageParamsSchema = paramsSchema.extend({ productId: z.string().uui
 const imageParamsSchema = productImageParamsSchema.extend({ imageId: z.string().uuid() });
 const assetParamsSchema = paramsSchema.extend({ assetId: z.string().uuid() });
 const attachImageSchema = z.object({ assetId: z.string().uuid(), altText: z.string().trim().max(240).optional(), sortOrder: z.coerce.number().int().min(0).max(1000).optional() });
+const updateImageSchema = z.object({ altText: z.string().trim().max(240).nullable().optional(), sortOrder: z.coerce.number().int().min(0).max(1000).optional() });
 
 export async function registerAssetRoutes(app: FastifyInstance) {
   app.post("/:shopId/images", async (request, reply) => {
@@ -81,6 +82,20 @@ export async function registerAssetRoutes(app: FastifyInstance) {
       const params = imageParamsSchema.parse(request.params);
       const session = await requireShopPermission(request, params.shopId, "assets:write");
       return removeProductImage(params.shopId, params.productId, params.imageId, session.user.id as string);
+    } catch (error) {
+      if (error instanceof AssetError) return reply.code(error.statusCode).send({ code: error.code, message: error.message });
+      if (error instanceof PermissionError || error instanceof AuthError) return reply.code(error.statusCode).send({ code: error.code, message: error.message });
+      if (error instanceof ZodError) return reply.code(400).send({ code: "VALIDATION_ERROR", message: "Request validation failed.", issues: error.issues });
+      throw error;
+    }
+  });
+
+  app.patch("/:shopId/products/:productId/images/:imageId", async (request, reply) => {
+    try {
+      const params = imageParamsSchema.parse(request.params);
+      const body = updateImageSchema.parse(request.body);
+      const session = await requireShopPermission(request, params.shopId, "assets:write");
+      return updateProductImage(params.shopId, params.productId, params.imageId, body, session.user.id as string);
     } catch (error) {
       if (error instanceof AssetError) return reply.code(error.statusCode).send({ code: error.code, message: error.message });
       if (error instanceof PermissionError || error instanceof AuthError) return reply.code(error.statusCode).send({ code: error.code, message: error.message });

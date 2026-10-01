@@ -177,3 +177,34 @@ Audit/timeline: None.
 Cache: Do not cache for the final sync decision; inventory may change.
 
 Errors: `SHOP_ACCESS_DENIED`, `PERMISSION_DENIED`, `VALIDATION_ERROR`.
+
+## `GET /shops/:shopId/status`
+
+Purpose: Check the shop's Facebook Page connection status, connected page metadata, and active permissions.
+
+Auth: Requires Bearer auth and `settings:read` permission.
+
+Request: Path `shopId`: shop UUID.
+
+Response: `200`
+```json
+{
+  "connected": true,
+  "connection": {
+    "id": "uuid",
+    "pageId": "1234567890",
+    "pageName": "My Shop Page",
+    "status": "active",
+    "scopes": ["pages_messaging", "pages_show_list"]
+  }
+}
+```
+
+Side effects: None.
+
+Audit/timeline: None for read.
+
+Cache: Allowed for settings dashboard.
+
+Errors: `401 AUTH_REQUIRED`, `403 PERMISSION_DENIED`.
+

@@ -1,4 +1,5 @@
 import { db } from "../../shared/db.js";
+import { sendMetaMessengerMessage } from "../meta/meta-messenger.service.js";
 
 export class InboxError extends Error {
   constructor(
@@ -114,13 +115,30 @@ export async function addMessage(
   actorId: string
 ) {
   const client = await db.connect();
+  let outboundResult: unknown = null;
   try {
     await client.query("begin");
     await ensureConversation(client, shopId, conversationId);
     await insertMessage(client, shopId, conversationId, input.source, input.body, actorId, input.externalMessageId ?? null);
+
+    // If staff sends a message in a Messenger conversation, dispatch to Meta Messenger
+    if (input.source === "staff") {
+      const conv = await client.query(
+        "select channel, buyer_external_id from conversations where shop_id = $1 and id = $2",
+        [shopId, conversationId]
+      );
+      if (conv.rows[0]?.channel === "messenger" && conv.rows[0]?.buyer_external_id) {
+        try {
+          outboundResult = await sendMetaMessengerMessage(shopId, conv.rows[0].buyer_external_id, input.body);
+        } catch (err) {
+          console.warn("Outbound Messenger send failed during staff message:", err);
+        }
+      }
+    }
+
     await client.query(
       "insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'staff', $2, 'inbox.message_added', 'conversation', $3, $4)",
-      [shopId, actorId, conversationId, { source: input.source }]
+      [shopId, actorId, conversationId, { source: input.source, outbound: outboundResult ? "dispatched" : "none" }]
     );
     await client.query("commit");
   } catch (error) {
@@ -130,6 +148,40 @@ export async function addMessage(
     client.release();
   }
   return getConversation(shopId, conversationId);
+}
+
+export async function getAiBrain(shopId: string) {
+  const result = await db.query("select ai_brain from shops where id = $1", [shopId]);
+  if (!result.rowCount) throw new InboxError("Shop not found.", 404, "SHOP_NOT_FOUND");
+  return { aiBrain: result.rows[0].ai_brain ?? {} };
+}
+
+export async function updateAiBrain(shopId: string, input: Record<string, unknown>, actorId: string) {
+  const current = await getAiBrain(shopId);
+  const merged = { ...current.aiBrain, ...input };
+  const result = await db.query(
+    "update shops set ai_brain = $2, updated_at = now() where id = $1 returning ai_brain",
+    [shopId, JSON.stringify(merged)]
+  );
+  if (!result.rowCount) throw new InboxError("Shop not found.", 404, "SHOP_NOT_FOUND");
+  await db.query(
+    "insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'staff', $2, 'inbox.ai_brain_updated', 'shop', $1, $3)",
+    [shopId, actorId, JSON.stringify(input)]
+  );
+  return { aiBrain: result.rows[0].ai_brain };
+}
+
+export async function toggleConversationAi(shopId: string, conversationId: string, aiEnabled: boolean, actorId: string) {
+  const result = await db.query(
+    "update conversations set ai_enabled = $3, updated_at = now() where shop_id = $1 and id = $2 returning id, ai_enabled, ai_paused",
+    [shopId, conversationId, aiEnabled]
+  );
+  if (!result.rowCount) throw new InboxError("Conversation not found.", 404, "CONVERSATION_NOT_FOUND");
+  await db.query(
+    "insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'staff', $2, 'inbox.conversation_ai_toggled', 'conversation', $3, $4)",
+    [shopId, actorId, conversationId, JSON.stringify({ aiEnabled })]
+  );
+  return { conversation: result.rows[0] };
 }
 
 export async function assignConversation(shopId: string, conversationId: string, assignedStaffId: string | null, actorId: string) {

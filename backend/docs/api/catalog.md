@@ -218,3 +218,31 @@ Purpose: export products, variants, prices, statuses, SKUs, and current ledger s
 Auth: Bearer session required; requires `catalog:read`.
 
 Side effects: None. Export reads PostgreSQL as source of truth.
+
+Errors: `401 AUTH_REQUIRED`, `403 PERMISSION_DENIED`.
+
+## `POST /shops/:shopId/embeddings/reindex`
+
+Purpose: Re-embed all active product images for this shop using Gemini multimodal embedding and update the vector store.
+
+Auth: Bearer session required; requires `catalog:write`.
+
+Request: Path `shopId`: shop UUID.
+
+Response: `200`
+```json
+{
+  "indexed": 15,
+  "failed": 0,
+  "total": 15
+}
+```
+
+Side effects: Upserts dense vector embeddings in `product_image_embeddings`.
+
+Audit/timeline: None for bulk batch indexing.
+
+Cache: Invalidate any vector similarity caches.
+
+Errors: `401 AUTH_REQUIRED`, `403 PERMISSION_DENIED`.
+

@@ -32,9 +32,11 @@ import { registerAiRoutes } from "./modules/ai/ai.routes.js";
 import { registerJobsRoutes } from "./modules/jobs/jobs.routes.js";
 import { registerLegalRoutes } from "./modules/legal/legal.routes.js";
 import { registerApprovalRoutes } from "./modules/approvals/approvals.routes.js";
+import { registerTestLabRoutes } from "./modules/test-lab/test-lab.routes.js";
 
 export async function buildApp() {
   const app = Fastify({
+    bodyLimit: 30 * 1024 * 1024,
     logger: {
       level: config.logLevel
     }
@@ -93,6 +95,11 @@ export async function buildApp() {
   await app.register(registerJobsRoutes, { prefix: "/api/v1/jobs" });
   await app.register(registerLegalRoutes, { prefix: "/api/v1/legal" });
   await app.register(registerApprovalRoutes, { prefix: "/api/v1/approvals" });
+  await app.register(registerTestLabRoutes, { prefix: "/api/v1/test-lab" });
+
+  app.get("/lab", async (_req, reply) => {
+    return reply.redirect("/api/v1/test-lab/ui");
+  });
 
   return app;
 }

@@ -52,12 +52,26 @@ const updateSettingsSchema = z.object({
   aiMode: z.enum(["off", "suggest", "auto_low_risk"]).optional(),
   storefront: z.object({
     templateId: z.string().trim().min(3).max(120).optional(),
+    tagline: z.string().trim().max(180).optional(),
+    description: z.string().trim().max(1200).optional(),
     theme: z.object({
       accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
       background: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
       text: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional()
     }).optional(),
-    sections: z.array(z.enum(["hero", "products", "policies", "contact"])).max(10).optional(),
+    contact: z.object({
+      whatsappNumber: z.string().trim().min(6).max(40).optional(),
+      facebookPageUrl: z.string().trim().url().optional(),
+      messengerUrl: z.string().trim().url().optional(),
+      instagramUrl: z.string().trim().url().optional(),
+      phone: z.string().trim().min(6).max(40).optional(),
+      email: z.string().trim().email().max(180).optional()
+    }).optional(),
+    orderCta: z.object({
+      primary: z.enum(["whatsapp", "messenger", "facebook"]).default("whatsapp"),
+      label: z.string().trim().min(2).max(60).default("Order now")
+    }).optional(),
+    sections: z.array(z.enum(["hero", "showcase", "products", "policies", "contact"])).max(10).optional(),
     banners: z.array(z.object({
       title: z.string().trim().min(1).max(120),
       subtitle: z.string().trim().max(240).optional(),
@@ -65,6 +79,12 @@ const updateSettingsSchema = z.object({
       actionLabel: z.string().trim().max(40).optional(),
       actionUrl: z.string().trim().max(240).optional()
     })).max(5).optional(),
+    showcases: z.array(z.object({
+      title: z.string().trim().min(1).max(120),
+      body: z.string().trim().max(500).optional(),
+      imageUrl: z.string().trim().url().optional(),
+      productIds: z.array(z.string().uuid()).max(12).optional()
+    })).max(8).optional(),
     seo: z.object({
       title: z.string().trim().max(160).optional(),
       description: z.string().trim().max(320).optional(),
@@ -314,8 +334,12 @@ export async function registerShopRoutes(app: FastifyInstance) {
       }
       const config = settings.settings.storefront_config as Record<string, unknown>;
       const seo = (config.seo ?? {}) as Record<string, unknown>;
+      const contact = (config.contact ?? {}) as Record<string, unknown>;
       const policy = settings.settings.policy_defaults as Record<string, unknown>;
       if (typeof seo.title !== "string" || typeof seo.description !== "string") throw new ShopError("SEO title and description are required before publishing.", 409, "PUBLISH_SEO_REQUIRED");
+      if (![contact.whatsappNumber, contact.messengerUrl, contact.facebookPageUrl].some((value) => typeof value === "string" && value.length > 0)) {
+        throw new ShopError("At least one order contact is required before publishing.", 409, "PUBLISH_CONTACT_REQUIRED");
+      }
       if (policy.codAllowed === undefined || policy.deliveryCharge === undefined || policy.returnDays === undefined) throw new ShopError("Policy defaults are required before publishing.", 409, "PUBLISH_POLICY_REQUIRED");
       const result = await db.query(
         `update shops

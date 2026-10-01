@@ -117,6 +117,12 @@ export async function attachProductImage(
       "insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'staff', $2, 'catalog.product_image_attached', 'product', $3, $4)",
       [shopId, actorId, productId, { assetId: input.assetId }]
     );
+    if (asset.rows[0].public_url) {
+      await db.query(
+        "insert into outbox_jobs (shop_id, queue, job_type, payload, max_attempts) values ($1, 'catalog', 'catalog.image.embed', $2, 3)",
+        [shopId, JSON.stringify({ shopId, productId, assetId: input.assetId, imageUrl: asset.rows[0].public_url })]
+      );
+    }
     return { image: { ...image.rows[0], ...asset.rows[0] } };
   } catch (error) {
     if ((error as { code?: string }).code === "23505") throw new AssetError("Asset is already attached to this product.", 409, "IMAGE_ALREADY_ATTACHED");
@@ -132,6 +138,28 @@ export async function removeProductImage(shopId: string, productId: string, imag
     [shopId, actorId, productId, { imageId, assetId: image.rows[0].asset_id }]
   );
   return { removed: image.rows[0] };
+}
+
+export async function updateProductImage(
+  shopId: string,
+  productId: string,
+  imageId: string,
+  input: { altText?: string | null; sortOrder?: number },
+  actorId: string
+) {
+  const current = await db.query("select id, alt_text, sort_order from product_images where shop_id = $1 and product_id = $2 and id = $3", [shopId, productId, imageId]);
+  if (!current.rowCount) throw new AssetError("Product image not found.", 404, "IMAGE_NOT_FOUND");
+  const image = await db.query(
+    `update product_images set alt_text = $4, sort_order = $5
+     where shop_id = $1 and product_id = $2 and id = $3
+     returning id, shop_id, product_id, asset_id, sort_order, alt_text, created_at`,
+    [shopId, productId, imageId, input.altText === undefined ? current.rows[0].alt_text : input.altText, input.sortOrder ?? current.rows[0].sort_order]
+  );
+  await db.query(
+    "insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'staff', $2, 'catalog.product_image_updated', 'product', $3, $4)",
+    [shopId, actorId, productId, { imageId, ...input }]
+  );
+  return { image: image.rows[0] };
 }
 
 async function readUpload(file: MultipartFile, maxBytes: number, tooLargeCode: string, tooLargeMessage: string) {

@@ -3,6 +3,7 @@ import { ZodError, type ZodTypeAny } from "zod";
 import { PermissionError, requireShopPermission } from "../../shared/permissions.js";
 import { AuthError } from "../auth/auth.service.js";
 import { CatalogError, createProduct, createVariant, exportProductsCsv, getProduct, importVariants, listProducts, updateProduct, updateVariant } from "./catalog.service.js";
+import { reindexShopCatalog } from "../ai/product-embedding.service.js";
 import { createProductSchema, createVariantSchema, exportQuerySchema, importVariantsSchema, productParamsSchema, shopParamsSchema, updateProductSchema, updateVariantSchema, variantParamsSchema } from "./catalog.validators.js";
 
 function parse<T extends ZodTypeAny>(schema: T, value: unknown) {
@@ -106,6 +107,17 @@ export async function registerCatalogRoutes(app: FastifyInstance) {
       await requireShopPermission(request, params.shopId, "catalog:read");
       const result = await exportProductsCsv(params.shopId);
       return reply.header("Content-Type", "text/csv; charset=utf-8").header("Content-Disposition", "attachment; filename=products.csv").send(result.csv);
+    } catch (error) {
+      const result = handleError(error);
+      return reply.code(result.statusCode).send(result.body);
+    }
+  });
+
+  app.post("/shops/:shopId/embeddings/reindex", async (request, reply) => {
+    try {
+      const params = parse(shopParamsSchema, request.params);
+      await requireShopPermission(request, params.shopId, "catalog:write");
+      return reindexShopCatalog(params.shopId);
     } catch (error) {
       const result = handleError(error);
       return reply.code(result.statusCode).send(result.body);

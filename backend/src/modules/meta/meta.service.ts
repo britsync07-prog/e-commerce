@@ -2,6 +2,7 @@ import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, 
 import { config } from "../../shared/config.js";
 import { db } from "../../shared/db.js";
 import { extractMetaCommentEvents, ingestMetaCommentEvents } from "../comments/comments.service.js";
+import { handleIncomingMessengerMessage } from "../inbox/messenger-reply.service.js";
 
 export class MetaError extends Error {
   constructor(message: string, public readonly statusCode: number, public readonly code: string) { super(message); }
@@ -184,19 +185,130 @@ export async function ingestWebhook(shopId: string, payload: unknown, signature:
   return { accepted: true, duplicate: false, event: result.rows[0] };
 }
 
+export type MetaMessengerEvent = {
+  platform: "messenger" | "instagram";
+  senderId: string;
+  recipientId: string;
+  messageId: string;
+  timestamp: number;
+  text?: string;
+  attachmentUrl?: string;
+  attachmentType?: string;
+};
+
+export function extractMetaMessengerEvents(payload: unknown): MetaMessengerEvent[] {
+  const body = payload as {
+    object?: string;
+    entry?: Array<{
+      id?: string;
+      messaging?: Array<{
+        sender?: { id?: string };
+        recipient?: { id?: string };
+        timestamp?: number;
+        message?: {
+          mid?: string;
+          text?: string;
+          attachments?: Array<{
+            type?: string;
+            payload?: { url?: string };
+          }>;
+        };
+      }>;
+    }>;
+  };
+
+  const events: MetaMessengerEvent[] = [];
+  for (const entry of body.entry ?? []) {
+    for (const msg of entry.messaging ?? []) {
+      if (!msg.message || !msg.sender?.id) continue;
+      const attachment = msg.message.attachments?.[0];
+      events.push({
+        platform: body.object === "instagram" ? "instagram" : "messenger",
+        senderId: msg.sender.id,
+        recipientId: msg.recipient?.id ?? entry.id ?? "",
+        messageId: msg.message.mid ?? `mid_${Date.now()}`,
+        timestamp: msg.timestamp ?? Date.now(),
+        text: msg.message.text,
+        attachmentUrl: attachment?.payload?.url,
+        attachmentType: attachment?.type
+      });
+    }
+  }
+  return events;
+}
+
+export async function ingestMetaMessengerEvents(shopId: string, events: MetaMessengerEvent[]) {
+  const results = [];
+  for (const event of events) {
+    try {
+      const res = await handleIncomingMessengerMessage(shopId, event);
+      results.push({ externalMessageId: event.messageId, status: "ingested", ...res });
+    } catch (err) {
+      console.error("Failed to ingest messenger event:", err);
+      results.push({ messageId: event.messageId, status: "error", error: err instanceof Error ? err.message : "Ingest failed" });
+    }
+  }
+  await db.query(
+    "insert into audit_events (shop_id, actor_type, actor_id, action, target_type, target_id, metadata) values ($1, 'system', 'system', 'meta.messenger_webhook_processed', 'shop', $1, $2)",
+    [shopId, JSON.stringify({ total: events.length, ingested: results.filter((r) => r.status === "ingested").length })]
+  );
+  return { processed: results };
+}
+
+export async function getMetaConnectionStatus(shopId: string) {
+  const result = await db.query(
+    `
+      select id, shop_id, page_id, instagram_account_id, status, last_verified_at, last_webhook_at, settings, created_at, updated_at
+      from meta_connections
+      where shop_id = $1
+      order by created_at desc
+      limit 1
+    `,
+    [shopId]
+  );
+
+  const conn = result.rows[0];
+  const settings = (conn?.settings ?? {}) as Record<string, unknown>;
+
+  return {
+    connected: Boolean(conn && conn.status === "active"),
+    connection: conn
+      ? {
+          id: conn.id,
+          pageId: conn.page_id,
+          pageName: settings.pageName ?? null,
+          instagramAccountId: conn.instagram_account_id,
+          status: conn.status,
+          lastVerifiedAt: conn.last_verified_at,
+          lastWebhookAt: conn.last_webhook_at,
+          scopes: config.metaOAuthScopes.split(",").map((s) => s.trim())
+        }
+      : null
+  };
+}
+
 export async function processMetaWebhookEvent(webhookEventId: string) {
   const event = await db.query("select id, shop_id, raw_payload, status from webhook_events where id = $1 and provider = 'meta' limit 1", [webhookEventId]);
   if (!event.rowCount) return { skipped: true, reason: "WEBHOOK_EVENT_NOT_FOUND" };
   if (event.rows[0].status === "processed") return { skipped: true, reason: "ALREADY_PROCESSED" };
   const payload = typeof event.rows[0].raw_payload === "string" ? JSON.parse(event.rows[0].raw_payload) : event.rows[0].raw_payload;
-  const comments = extractMetaCommentEvents(payload);
-  if (!comments.length) {
-    await db.query("update webhook_events set status = 'ignored', processed_at = now() where id = $1", [webhookEventId]);
-    return { ignored: true, reason: "NO_COMMENT_EVENTS" };
+
+  const messengerEvents = extractMetaMessengerEvents(payload);
+  if (messengerEvents.length) {
+    const result = await ingestMetaMessengerEvents(event.rows[0].shop_id, messengerEvents);
+    await db.query("update webhook_events set status = 'processed', processed_at = now() where id = $1", [webhookEventId]);
+    return result;
   }
-  const result = await ingestMetaCommentEvents(event.rows[0].shop_id, comments);
-  await db.query("update webhook_events set status = 'processed', processed_at = now() where id = $1", [webhookEventId]);
-  return result;
+
+  const comments = extractMetaCommentEvents(payload);
+  if (comments.length) {
+    const result = await ingestMetaCommentEvents(event.rows[0].shop_id, comments);
+    await db.query("update webhook_events set status = 'processed', processed_at = now() where id = $1", [webhookEventId]);
+    return result;
+  }
+
+  await db.query("update webhook_events set status = 'ignored', processed_at = now() where id = $1", [webhookEventId]);
+  return { ignored: true, reason: "NO_ACTIONABLE_EVENTS" };
 }
 
 export async function verifyWebhook(query: { mode?: string; verifyToken?: string; challenge?: string }) {
