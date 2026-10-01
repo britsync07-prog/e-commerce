@@ -67,3 +67,36 @@ Cache:
 
 Errors:
 - `503` with `status: "not_ready"` if the database check fails.
+
+## `GET /api/v1/health/metrics`
+
+Purpose:
+- Returns lightweight in-process request counters and latency summaries.
+
+Auth:
+- Requires `x-metrics-token` or `Authorization: Bearer <token>` when `METRICS_TOKEN` is configured.
+
+Response:
+
+```json
+{
+  "startedAt": "2026-10-01T00:00:00.000Z",
+  "uptimeSeconds": 120,
+  "totalRequests": 12,
+  "totalErrors": 0,
+  "routes": [
+    {
+      "method": "GET",
+      "route": "/api/v1/health",
+      "count": 10,
+      "errorCount": 0,
+      "avgMs": 1.2,
+      "maxMs": 4.5,
+      "status": { "200": 10 }
+    }
+  ]
+}
+```
+
+Errors:
+- `403 METRICS_FORBIDDEN`

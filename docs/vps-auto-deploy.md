@@ -103,6 +103,7 @@ STORAGE_PUBLIC_PREFIX=public
 STORAGE_PRIVATE_PREFIX=private
 BACKUP_DIR=/absolute/private/backup/path
 BACKUP_RETENTION_DAYS=7
+METRICS_TOKEN=minimum-16-character-token
 STOREFRONT_PORT=storefront_port
 STOREFRONT_HOST=0.0.0.0
 STOREFRONT_BACKEND_URL=http://backend_host:backend_port

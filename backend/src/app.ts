@@ -7,6 +7,7 @@ import swaggerUi from "@fastify/swagger-ui";
 import multipart from "@fastify/multipart";
 import { config } from "./shared/config.js";
 import { requestContextHook } from "./shared/request-context.js";
+import { metricsOnRequest, metricsOnResponse } from "./shared/metrics.js";
 import { registerAssetRoutes } from "./modules/assets/assets.routes.js";
 import { registerAuthRoutes } from "./modules/auth/auth.routes.js";
 import { registerAnalyticsRoutes } from "./modules/analytics/analytics.routes.js";
@@ -37,6 +38,8 @@ export async function buildApp() {
   });
 
   app.addHook("onRequest", requestContextHook);
+  app.addHook("onRequest", metricsOnRequest);
+  app.addHook("onResponse", metricsOnResponse);
 
   await app.register(helmet);
   await app.register(cors, { origin: config.appOrigins });

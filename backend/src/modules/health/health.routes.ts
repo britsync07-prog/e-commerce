@@ -1,5 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { db } from "../../shared/db.js";
+import { config } from "../../shared/config.js";
+import { metricsSnapshot } from "../../shared/metrics.js";
 
 export async function registerHealthRoutes(app: FastifyInstance) {
   app.get(
@@ -69,4 +71,13 @@ export async function registerHealthRoutes(app: FastifyInstance) {
       }
     }
   );
+
+  app.get("/metrics", async (request, reply) => {
+    const token = request.headers["x-metrics-token"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
+    if (config.metricsToken && token !== config.metricsToken) {
+      return reply.code(403).send({ code: "METRICS_FORBIDDEN", message: "Metrics token is required." });
+    }
+
+    return metricsSnapshot();
+  });
 }

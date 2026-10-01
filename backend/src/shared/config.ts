@@ -23,6 +23,7 @@ const schema = z.object({
   S3_PUBLIC_BASE_URL: z.string().url().optional(),
   STORAGE_PUBLIC_PREFIX: z.string().default("public"),
   STORAGE_PRIVATE_PREFIX: z.string().default("private"),
+  METRICS_TOKEN: z.string().min(16).optional(),
   META_WEBHOOK_SECRET: z.string().min(16).optional(),
   META_WEBHOOK_VERIFY_TOKEN: z.string().min(8).optional(),
   META_APP_ID: z.string().min(1).optional(),
@@ -51,6 +52,7 @@ if (env.NODE_ENV === "production") {
     throw new Error("APP_ORIGIN must not use localhost in production.");
   }
   if (!env.ASSET_SIGNING_SECRET) throw new Error("ASSET_SIGNING_SECRET is required in production.");
+  if (!env.METRICS_TOKEN) throw new Error("METRICS_TOKEN is required in production.");
 }
 
 if (env.STORAGE_DRIVER === "s3") {
@@ -78,6 +80,7 @@ export const config = {
   s3PublicBaseUrl: env.S3_PUBLIC_BASE_URL,
   storagePublicPrefix: env.STORAGE_PUBLIC_PREFIX,
   storagePrivatePrefix: env.STORAGE_PRIVATE_PREFIX,
+  metricsToken: env.METRICS_TOKEN,
   metaWebhookSecret: env.META_WEBHOOK_SECRET,
   metaWebhookVerifyToken: env.META_WEBHOOK_VERIFY_TOKEN,
   metaAppId: env.META_APP_ID,

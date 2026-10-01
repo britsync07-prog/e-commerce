@@ -30,7 +30,8 @@ module.exports = {
         S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY,
         S3_PUBLIC_BASE_URL: process.env.S3_PUBLIC_BASE_URL,
         STORAGE_PUBLIC_PREFIX: process.env.STORAGE_PUBLIC_PREFIX,
-        STORAGE_PRIVATE_PREFIX: process.env.STORAGE_PRIVATE_PREFIX
+        STORAGE_PRIVATE_PREFIX: process.env.STORAGE_PRIVATE_PREFIX,
+        METRICS_TOKEN: requireEnv("METRICS_TOKEN")
       }
     },
     {
@@ -53,7 +54,8 @@ module.exports = {
         S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY,
         S3_PUBLIC_BASE_URL: process.env.S3_PUBLIC_BASE_URL,
         STORAGE_PUBLIC_PREFIX: process.env.STORAGE_PUBLIC_PREFIX,
-        STORAGE_PRIVATE_PREFIX: process.env.STORAGE_PRIVATE_PREFIX
+        STORAGE_PRIVATE_PREFIX: process.env.STORAGE_PRIVATE_PREFIX,
+        METRICS_TOKEN: requireEnv("METRICS_TOKEN")
       }
     },
     {
