@@ -13,6 +13,7 @@ const tests = [
   "test/payments-db-smoke.mjs",
   "test/analytics-db-smoke.mjs",
   "test/customers-db-smoke.mjs",
+  "test/legal-db-smoke.mjs",
   "test/meta-db-smoke.mjs",
   "test/comments-db-smoke.mjs",
   "test/ai-command-db-smoke.mjs",

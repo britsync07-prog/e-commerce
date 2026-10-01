@@ -24,6 +24,10 @@ export const permissions = [
   "team:write",
   "settings:read",
   "settings:write",
+  "legal:read",
+  "legal:write",
+  "privacy:read",
+  "privacy:write",
   "exports:run"
 ] as const;
 

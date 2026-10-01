@@ -136,5 +136,6 @@ export const backendModules: BackendModule[] = [
   { key: "webhooks", name: "Webhooks", status: "active", owns: ["signed Meta event ingestion", "webhook idempotency"], apiBase: "/api/v1/webhooks", apiDoc: "webhooks.md", phase: "foundation" },
   { key: "ai", name: "AI command center", status: "active", owns: ["command records", "risk classification", "source citations", "action approvals", "review-only ad creative drafts"], apiBase: "/api/v1/ai", apiDoc: "ai.md", phase: "p1" },
   { key: "settings", name: "Settings, billing, and security", status: "active", owns: ["policies", "security", "billing usage", "sessions", "external connections"], apiBase: "/api/v1/shops", apiDoc: "shops.md", phase: "foundation" },
-  { key: "jobs", name: "Workers and jobs", status: "active", owns: ["queues", "retries", "dead letters", "operator retry"], apiBase: "/api/v1/jobs", apiDoc: "jobs.md", phase: "foundation" }
+  { key: "jobs", name: "Workers and jobs", status: "active", owns: ["queues", "retries", "dead letters", "operator retry"], apiBase: "/api/v1/jobs", apiDoc: "jobs.md", phase: "foundation" },
+  { key: "legal", name: "Legal, privacy, and consent", status: "active", owns: ["legal policies", "cookie consent", "privacy requests"], apiBase: "/api/v1/legal", apiDoc: "legal.md", phase: "p1" }
 ];
